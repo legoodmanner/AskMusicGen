@@ -1,0 +1,21 @@
+data:
+  name: genre_classification
+  data_dir: '/home/lego/Database/Data'
+  batch_size: 8
+  num_workers: 0
+  
+model:
+  peft:
+    repr_head:
+      n_classes: 10
+      hidden_sizes: 512
+      dropout: 0.25
+
+training:
+  accumulate_grad_batches: 8
+
+# batch_size * accumulate_grad_batches = 64
+
+
+  
+  

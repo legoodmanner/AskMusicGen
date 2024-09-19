@@ -1,0 +1,21 @@
+data:
+  name: GTZAN_MusicGen300M
+  data_dir: '/home/lego/Gatech/Rupak/cache/GTZAN_MusicGen_s'
+  batch_size: 64
+  num_workers: 0
+  
+model:
+  peft:
+    repr_head:
+      n_classes: 10
+      hidden_sizes: 512
+      dropout: 0.25
+
+training:
+  accumulate_grad_batches: 1
+
+# batch_size * accumulate_grad_batches = 64
+
+
+  
+  

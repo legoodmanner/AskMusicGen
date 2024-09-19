@@ -1,0 +1,17 @@
+data:
+  sample_rate: 32000 # this is the wanted sample rate required for genmodel
+
+model:
+  peft: 
+    name: ProbeModule
+
+  gen_model: 
+    name: musicgen
+    extract_layer: -1
+    
+  
+    
+    
+
+  
+  
