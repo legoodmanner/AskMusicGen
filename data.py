@@ -1,7 +1,7 @@
 import os
 import torch
 import torchaudio
-import pytorch_lightning as pl
+import lightning as L
 from torch.utils.data import random_split, DataLoader
 from torchaudio.datasets import GTZAN
 from torchaudio.transforms import MelSpectrogram
@@ -9,15 +9,36 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import pickle
 
+
+def get_aggregators(methods=None):
+    # get aggregators with 'list of str' or 'str' or None
+    agg_dict = {
+            'layer_mean': lambda a: torch.mean(a, axis=-3, keepdim=True),
+            'time_mean': lambda a: torch.mean(a, axis=-2, keepdim=True),
+    }
+    aggregators = []
+    if not methods: return aggregators
+    if isinstance(methods, list):
+        for method in methods:
+            aggregators.append(agg_dict[method])
+        aggregators.append(torch.squeeze)
+    elif isinstance(str, list):
+        aggregators.append(agg_dict[methods])
+        aggregators.append(torch.squeeze)
+    else:
+        raise TypeError('incompatiable type for aggregation methods')
+    return aggregators
+       
+
 def get_dataModule(config):
     dataConfig = config.data
     dataModule_dict = {
         'genre_classification': GTZANDataModule,
-        'GTZAN_MusicGen300M': GTZANMusicGen300MFeatureModule
+        'GTZAN_MusicGen300M': PreComputeDataModule
     }
     return dataModule_dict[dataConfig.name](**dataConfig)
 
-class GTZANDataModule(pl.LightningDataModule):
+class GTZANDataModule(L.LightningDataModule):
     def __init__(self, data_dir: str, batch_size: int = 32, num_workers: int = 4, sample_rate: int = 22050, num_samples: int = 650000, **kwargs):
         super().__init__()
         self.data_dir = data_dir
@@ -87,29 +108,32 @@ class FeatureDataset(Dataset):
         
         data = torch.load(os.path.join(self.root, self.subset,self.fl[index]), weights_only=True)
         repr, label = data['repr'], data['label']
-        return repr, label
+        return repr, label # repr.shape = [layers, seq_len, dim], label.shape = [1]
     
     def __len__(self):
         return len(self.fl)
+    
 
 
-class GTZANMusicGen300MFeatureModule(pl.LightningDataModule):
+class PreComputeDataModule(L.LightningDataModule):
     def __init__(self, data_dir: str, batch_size: int = 32, num_workers: int = 4, **kwargs):
         super().__init__()
+        # data_dir should contain train / valid / test 3 directories 
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.label_to_index = {}
+        self.aggregators = get_aggregators(kwargs.get('aggregators')) # list or str or None
         self.setup()
 
     def prepare_data(self):
         pass
 
     def setup(self, stage=None):
-        self.train_dataset = FeatureDataset(root=self.data_dir, subset='train')
-        self.val_dataset = FeatureDataset(root=self.data_dir, subset='valid')
-        # self.test_dataset = FeatureDataset(root=self.data_dir, download=False, subset='testing', folder_in_archive='genres_original')
+        self.train_dataset = FeatureDataset(root=self.data_dir, subset='train',)
+        self.val_dataset = FeatureDataset(root=self.data_dir, subset='valid',)
+        self.test_dataset = FeatureDataset(root=self.data_dir, subset='test',)
 
         # Create label mapping
         all_labels = set()
@@ -119,17 +143,30 @@ class GTZANMusicGen300MFeatureModule(pl.LightningDataModule):
                 
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True,)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=self.collate_fn)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers,)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
 
-    # def test_dataloader(self):
-    #     return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
 
     def teardown(self, stage=None):
         # Clean up any resources, if necessary
         pass
+
+    def collate_fn(self, batch):
+       # input should be in the shaoe of [.., layers, seq_len, dim]
+        feats, labels= [], []
+        for feat, label in batch:
+            for agg_method in self.aggregators:
+               feat = agg_method(feat)
+            feats.append(feat)
+            labels.append(label)
+        return torch.stack(feats), torch.stack(labels) 
+            
+                
+
 
 if __name__ == '__main__':
     

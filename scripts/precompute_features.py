@@ -44,8 +44,8 @@ class FeatureExtractor(L.LightningModule):
 if __name__ == '__main__':
     from data import get_dataModule
     output_path = "cache/GTZAN_MusicGen_s/"
-    modelConfig = OmegaConf.load('/home/lego/Gatech/Rupak/configs/gens/musGen.yaml')
-    dataConfig = OmegaConf.load('/home/lego/Gatech/Rupak/configs/tasks/GTZAN_genre.yaml')
+    modelConfig = OmegaConf.load('configs/gens/musGen.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/GTZAN_genre.yaml')
     model = FeatureExtractor(modelConfig, output_path, mode='train')
     dl = get_dataModule(dataConfig)
     # Assuming you have a DataLoader for your dataset
@@ -55,6 +55,9 @@ if __name__ == '__main__':
     
     model.mode = 'valid'
     trainer.predict(model, dataloaders=dl.val_dataloader())
+
+    model.mode = 'test'
+    trainer.predict(model, dataloaders=dl.test_dataloader())
 
     print(f"Features extracted and saved to {output_path}")
                 
