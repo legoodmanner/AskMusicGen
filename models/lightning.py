@@ -10,11 +10,10 @@ import matplotlib.pyplot as plt
 from models.gen_models import get_gen_model
 from models.layers import *
 
-class ProbeModule(L.LightningModule):
+class DiscrimProbeModule(L.LightningModule):
     def __init__(self, gen_model, config):
         super().__init__()
         self.config = config
-        self.save_hyperparameters(ignore='gen_model')  
         self.criterion = nn.CrossEntropyLoss()
         self.metric = Accuracy(task="multiclass", num_classes=config.model.peft.repr_head.n_classes)
         if self.config.model.peft.get('use_feature'):
@@ -26,21 +25,24 @@ class ProbeModule(L.LightningModule):
             output_size= config.model.peft.repr_head.n_classes,
             dropout=config.model.peft.repr_head.dropout
         )
+        self.save_hyperparameters(ignore='gen_model')  
     
-    def forward(self, wavs):
-        if not self.config.model.peft.get('use_feature'): 
+    def forward(self, inps):
+        if not self.config.model.peft.get('use_feature'): # inps is wave
             with torch.no_grad():
-                repr = self.repr_extractor(wavs) # bsz, seq_len, dim
+                repr = self.repr_extractor(inps) # bsz, seq_len, dim
+            # Aggregate
             repr = torch.mean(repr, dim=-2) # TODO would try out different aggregation methods.
-        else:
+        else:  # inpt is precomputed feature (already aggregated)
+            assert len(inps.shape) == 3, f'Features should be aggregated in advance, shape need to be [B, layer, dim], got {inps.shape}'
             extract_layer = self.config.model.gen_model.extract_layer
-            repr = wavs[:,extract_layer,:]
+            repr = inps[:,extract_layer,:]
         logits = self.probe_mlp(repr)  # bsz, seq_len, n_class
         return logits
     
     def training_step(self, batch, batch_idx):
-        wavs, labels = batch
-        logits = self(wavs)
+        inps, labels = batch
+        logits = self(inps)
         train_loss = self.criterion(logits, labels)
         self.log("train_loss", train_loss, on_step = True, on_epoch = False, batch_size = self.config.data.batch_size, prog_bar = True)
         return train_loss
@@ -52,8 +54,8 @@ class ProbeModule(L.LightningModule):
         return optimizer
 
     def validation_step(self, batch, batch_idx):
-        wavs, labels = batch
-        logits = self(wavs)
+        inps, labels = batch
+        logits = self(inps)
         val_loss = self.criterion(logits, labels)
         self.metric(logits, labels)
         self.log("val_loss", val_loss, on_step = True, on_epoch = False, batch_size = self.config.data.batch_size, prog_bar = True)
@@ -63,23 +65,7 @@ class ProbeModule(L.LightningModule):
     def on_validation_epoch_end(self):
         self.log("val_acc_epoch", self.metric.compute())
 
-    # def on_after_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
-    #     audio, text = batch
-    #     text_latent = self.text_encoder.encode(text).squeeze()
-        
-    #     if self.config.data.token_spec.num_chunk is not None:
-    #         # TODO: Find a better way to num_chunk
-    #         audio = audio.permute(0,2,1,3)
-    #         batch, n_codebook, orig_chunk, time = audio.shape
-    #         audio = audio[:,:,:min(orig_chunk, self.config.data.token_spec.num_chunk)]
-    #         audio = audio.permute(0,2,1,3)
-
-    #     batch = (audio, text_latent)
-    #     return batch
-   
-    # def on_train_epoch_end(self):
-    #     self.log("mask_prob", self.mask_scheduler.get_current_mask_prob(), prog_bar = False)
-    #     self.mask_scheduler.step()
+\
 
 
 

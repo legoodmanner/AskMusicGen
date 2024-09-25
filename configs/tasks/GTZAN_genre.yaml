@@ -1,11 +1,13 @@
 data:
   name: genre_classification
-  data_dir: '/home/lego/Database/Data'
+  # data_dir: '/home/lego/Database/Data'
+  data_dir: '../scratch/GTZAN/raw'
   batch_size: 8
   num_workers: 0
   
 model:
   peft:
+    name: DiscrimProbeModule
     repr_head:
       n_classes: 10
       hidden_sizes: 512

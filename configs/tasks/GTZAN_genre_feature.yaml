@@ -1,0 +1,24 @@
+data:
+  name: genre_classification_on_feature
+  data_dir: 'cache/GTZAN' # would be edited based on precompute model in PrecomputeModule when setting up
+  batch_size: 64
+  num_workers: 0
+  aggregators: null #for this cache, all the time frame is aggregate into 1, no need additional aggregators
+
+model:
+  peft:
+    name: DiscrimProbeModule
+    repr_head:
+      n_classes: 10
+      hidden_sizes: 512
+      dropout: 0.25
+    use_feature: True
+
+training:
+  accumulate_grad_batches: 1
+
+# batch_size * accumulate_grad_batches = 64
+
+
+  
+  

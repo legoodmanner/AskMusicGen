@@ -7,17 +7,19 @@ import torchaudio
 def get_gen_model(config):
     modelConfig = config.model.gen_model
     model_dict = {
-        'musicgen': MusicGenModule,
+        'MusicGenSmall': MusicGenModule,
+        'MusicGenMedium': MusicGenModule,
     }
 
     return model_dict[modelConfig.name](**modelConfig)
     
 
 class MusicGenModule(torch.nn.Module):
-    def __init__(self, extract_layer=-1, **kwargs) -> None:
+    def __init__(self, extract_layer=-1, version='small', **kwargs) -> None:
         super().__init__()
         # self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
-        self.model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
+        print('hello')
+        self.model = MusicgenForConditionalGeneration.from_pretrained(f"facebook/musicgen-{version}")
         self.layer = extract_layer
         self.model.generation_config.max_length = 3080
         self.requires_grad_(False)
@@ -45,7 +47,7 @@ class MusicGenModule(torch.nn.Module):
 
         inputs = self.model.get_unconditional_inputs(bsz)
         inputs['decoder_input_ids'] = audio_codes[0, ...].reshape(bsz * codebooks, seq_len)
-        inputs['decoder_input_ids'] = self.model.prepare_inputs_for_generation(**inputs)['decoder_input_ids']
+        # inputs['decoder_input_ids'] = self.model.prepare_inputs_for_generation(**inputs)['decoder_input_ids']
         decoder_outputs = self.model(
                     **inputs,
                     output_hidden_states=True,

@@ -1,0 +1,15 @@
+data:
+  sample_rate: 32000 # this is the wanted sample rate required for genmodel
+
+model:
+  gen_model: 
+    name: MusicGenSmall
+    version: small 
+    extract_layer: 17 # would be overwritten if assigned in base config
+    
+  
+    
+    
+
+  
+  
