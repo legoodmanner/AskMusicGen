@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -20,3 +21,14 @@ class MLP(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+    
+from madmom.features.beats import DBNBeatTrackingProcessor
+
+def dbnProcessor(activations, fps):
+    # activation.shape = (B, seq_len, 2)
+    proc = DBNBeatTrackingProcessor(fps=fps)
+    result = []
+    for act in activations:
+        act = act.detach().cpu().numpy()
+        result += [proc(act)] # pred
+    return result #list of beat position in seconds e.g. [1.24, 1.45, 1.78, ...]

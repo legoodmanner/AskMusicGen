@@ -6,6 +6,7 @@ model:
     name: MusicGenSmall
     version: small 
     extract_layer: 17 # would be overwritten if assigned in base config
+    fps: 50
     
   
     

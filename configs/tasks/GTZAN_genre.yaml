@@ -8,6 +8,7 @@ data:
 model:
   peft:
     name: DiscrimProbeModule
+    metric: Accuracy
     repr_head:
       n_classes: 10
       hidden_sizes: 512

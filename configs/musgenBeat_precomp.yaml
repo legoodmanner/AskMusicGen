@@ -1,7 +1,7 @@
 # Project base config
 experiment:
   seed: 2024
-  task: GTZAN_genre_feature
+  task: GTZAN_rhythm_feature
   gen_model: MusicGenSmall
   logger:
     output_dir: '../scratch/outputs/'

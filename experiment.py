@@ -3,7 +3,7 @@ from omegaconf import DictConfig
 import torch
 from tqdm.auto import tqdm
 
-from models.lightning import ProbeModule
+import models.lightning
 from models.gen_models import get_gen_model
 from data import get_dataModule
 
@@ -17,7 +17,7 @@ from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTh
 
 import os
 from omegaconf import OmegaConf
-
+from importlib import import_module
 
 PROGRESS_BAR = RichProgressBar(
     theme=RichProgressBarTheme(
@@ -56,32 +56,36 @@ class Experiment:
     def setup_config(self):
         task = self.config.experiment.task # str or None
         gen_model = self.config.experiment.gen_model
+        # 1. Get task configuration, and combine with current meta config
         if task:
             config_task = os.path.join('configs', 'tasks', self.config.experiment.task) + '.yaml'
             if os.path.isfile(config_task):
                 print(f'Task {task} build up data configurations from {config_task}')
-                self.config = OmegaConf.merge(self.config, OmegaConf.load(config_task))
+                self.config = OmegaConf.merge(OmegaConf.load(config_task), self.config)
             else:
                 raise NameError(f'Cannot find {config_task}.yaml')
         else:
             raise ValueError('Cannot build the task correctly, make sure there is either config.experiment.task ')
+       
+        # 2. Get generation model configuration, and combine with current meta config
         if gen_model:
             config_gen = os.path.join('configs', 'gens', gen_model) + '.yaml'
             if os.path.isfile(config_gen):
                 print(f'Task {task} build up data configurations from {config_gen}')
-                self.config = OmegaConf.merge(self.config, OmegaConf.load(config_gen))
+                self.config = OmegaConf.merge(OmegaConf.load(config_gen), self.config)
             else:
                 raise NameError(f'Cannot find {config_gen}.yaml')
         else:
             raise ValueError('Cannot build the task correctly, make sure there is either config.experiment.gen')
-            
             
     def setup_model(self):
 
         # Initiate audio and text encoder
         # TODO: Support more audio and text encoder for future experiments
         gen_model = get_gen_model(self.config)
-        self.model = ProbeModule(gen_model, config=self.config)
+        modelclass = getattr(models.lightning, self.config.model.peft.name)
+        self.model = modelclass(gen_model, config=self.config)
+        print(f'Build the base module as {self.config.model.peft.name}')
         # Get the parameters for the model
         return None
     
@@ -165,26 +169,6 @@ class Experiment:
 
         logger = self.setup_logger()
 
-        # if self.config.environment.gpu_num > 1:
-        #         print(f"\033[93m Using DDP; GPU Num: {self.config.environment.gpu_num} \033[0m")
-        #         trainer = L.Trainer(
-        #             max_epochs=self.config.training.epochs, 
-        #             accelerator="gpu",
-        #             default_root_dir=self.config.experiment.output_dir,
-        #             callbacks=[PROGRESS_BAR],
-        #             # logger = logger,
-        #             log_every_n_steps= self.config.training.log_step,
-        #             val_check_interval= self.config.training.val_check_step,
-        #             precision = "16-mixed",
-        #             limit_val_batches= 20,
-        #             devices=self.config.environment.gpu_num, 
-        #             strategy="ddp",
-        #             gradient_clip_val=0.5,
-        #             gradient_clip_algorithm='value'
-        #         )
-            
-        # else:
-
         trainer = L.Trainer(
             max_epochs=self.config.training.epochs, 
             accelerator="gpu",
@@ -210,7 +194,7 @@ class Experiment:
 
         trainer.fit(model = self.model, 
             train_dataloaders = self.dl.train_dataloader(),
-            val_dataloaders = self.dl.val_dataloader(),
+            val_dataloaders = self.dl.test_dataloader(),
             ckpt_path =ckpt_path)
 
         print('Training done')
@@ -235,13 +219,20 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'c', type=str, default=None, help='path of the configuration file'
+        'c', type=str, default=None, help='path of the configuration file',
+    )
+    parser.add_argument(
+        '--layer', type=int, default=None, help='which layer to extract, if it is already in config file, just leave it none'
     )
     parser.add_argument(
         '--dry_run', action='store_true',
     )
     args = parser.parse_args()
     base_config = OmegaConf.load(args.c)
+    # update layer information 
+    if args.layer:
+        OmegaConf.update(base_config, 'model.gen_model.extract_layer', args.layer)
+
     exp = Experiment(base_config)
     if args.dry_run:
         exp.dry_run()

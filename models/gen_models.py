@@ -18,7 +18,6 @@ class MusicGenModule(torch.nn.Module):
     def __init__(self, extract_layer=-1, version='small', **kwargs) -> None:
         super().__init__()
         # self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
-        print('hello')
         self.model = MusicgenForConditionalGeneration.from_pretrained(f"facebook/musicgen-{version}")
         self.layer = extract_layer
         self.model.generation_config.max_length = 3080
