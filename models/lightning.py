@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from models.gen_models import get_gen_model
 from models.layers import *
-from models.eval import BeatF1MedianScore
+from models.eval import BeatF1MedianScore, BeatFMeasure
 
 class DiscrimProbeModule(L.LightningModule):
     def __init__(self, gen_model, config):
@@ -80,8 +80,8 @@ class SequentialProbeModule(L.LightningModule):
     def __init__(self, gen_model, config):
         super().__init__()
         self.config = config
-        self.criterion = nn.CrossEntropyLoss()
-        self.metric = BeatF1MedianScore(fps=config.model.gen_model.fps)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.2, weight=torch.tensor([0.1, 0.9]))
+        self.metric = BeatFMeasure(label_freq=config.model.gen_model.fps)
         if self.config.model.peft.get('use_feature'):
             print('using pre-compute feature to train')
         self.repr_extractor = gen_model
@@ -121,7 +121,7 @@ class SequentialProbeModule(L.LightningModule):
         inps, meta = batch
         logits = self(inps)
         val_loss = self.criterion(logits, meta['beat_f'].long())
-        self.metric(logits, meta['beat_t'][:])
+        self.metric(logits, meta['beat_f'])
         self.log("val_loss", val_loss, on_step = True, on_epoch = False, batch_size = self.config.data.batch_size, prog_bar = True)
         return val_loss
 

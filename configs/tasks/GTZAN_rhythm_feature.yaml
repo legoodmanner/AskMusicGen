@@ -1,6 +1,6 @@
 data:
   name: beat_tracking_on_feature
-  data_dir: '../scratch/GTZAN/' # would be appended/join with child directory based on precompute model in PrecomputeModule when setting up
+  data_dir: '/home/lego/Database/GTZAN/' # would be appended/join with child directory based on precompute model in PrecomputeModule when setting up
   batch_size: 64
   num_workers: 0
   aggregators: null #for this cache, all the time frame is aggregate into 1, no need additional aggregators
@@ -15,8 +15,6 @@ model:
       n_classes: 2
       hidden_sizes: 512
       dropout: 0.25
-  gen_model:
-    extract_layer: 15
 
 training:
   accumulate_grad_batches: 1

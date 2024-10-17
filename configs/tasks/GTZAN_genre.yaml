@@ -1,7 +1,7 @@
 data:
   name: genre_classification
   # data_dir: '/home/lego/Database/Data'
-  data_dir: '../scratch/GTZAN/raw'
+  data_dir: '/home/lego/Database/GTZAN/raw'
   batch_size: 8
   num_workers: 0
   

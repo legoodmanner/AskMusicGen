@@ -82,7 +82,7 @@ class GTZANDataModule(L.LightningDataModule):
         if audio.size(1) > self.num_samples:
             return audio[:, :self.num_samples]
         return torch.nn.functional.pad(audio, (0, self.num_samples - audio.size(1)))
-
+    
     def collate_fn(self, batch):
         waveforms, meta = [], dict(label=[], beat_t=[], beat_f=[]),
         for waveform, info in batch:
@@ -90,7 +90,7 @@ class GTZANDataModule(L.LightningDataModule):
             waveform = torchaudio.functional.resample(waveform, info['sample_rate'], self.sample_rate)
             waveforms.append(waveform)
             meta['label'].append(torch.tensor(self.label_to_index[info['label']]))
-            meta['beat_t'].append(info['beat_t'])
+            meta['beat_t'].append(np.array(info['beat_t']))
             meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
         # Wrap the collected data
         waveforms = torch.stack(waveforms)

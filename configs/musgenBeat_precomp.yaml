@@ -4,7 +4,7 @@ experiment:
   task: GTZAN_rhythm_feature
   gen_model: MusicGenSmall
   logger:
-    output_dir: '../scratch/outputs/'
+    output_dir: 'outputs/'
     type: wandb
     project: AskMuiscGen
     name: null
@@ -19,5 +19,7 @@ training:
 model:
   peft: 
     use_feature: True
+  gen_model:
+    extract_layer: 12
 
   
