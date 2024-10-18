@@ -11,13 +11,14 @@ def get_gen_model(config):
         'MusicGenMedium': MusicGenModule,
     }
 
-    return model_dict[modelConfig.name](**modelConfig)
+    return model_dict[modelConfig.name](config=config, **modelConfig)
     
 
 class MusicGenModule(torch.nn.Module):
-    def __init__(self, extract_layer=-1, version='small', **kwargs) -> None:
+    def __init__(self, config=None, extract_layer=-1, version='small', **kwargs) -> None:
         super().__init__()
         # self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
+        self.config = config
         self.model = MusicgenForConditionalGeneration.from_pretrained(f"facebook/musicgen-{version}")
         self.layer = extract_layer
         self.model.generation_config.max_length = 3080
@@ -57,17 +58,36 @@ class MusicGenModule(torch.nn.Module):
         else:
             return decoder_outputs.decoder_hidden_states # tuple( torch.Size([bs, seq_len, 1024]) * layer_number )
 
+
+from vampnet.interface import Interface as VampNetInterface
+
+class VampNetModule(torch.nn.Module):
+    def __init__(self, config=None, extract_layer=-1, version='coarse', **kwargs) -> None:
+        super().__init__()
+        self.config = config
+        self.model = VampNetInterface(
+            coarse_ckpt="./cache/vampnet/coarse.pth", 
+            coarse2fine_ckpt="./cache/vampnet/c2f.pth", 
+            codec_ckpt="./cache/vampnet/codec.pth",
+            device="cuda", 
+            wavebeat_ckpt=None,
+        )
+        self.layer = extract_layer
+        self.requires_grad_(False)
+
+    # TODO: fine2coarse still not implemented
+    @torch.no_grad()
+    def forward(self, wav):
+        z = self.model.codec.encode(wav, self.config.data.sample_rate)['z']
+        z = z[:, : self.model.coarse.n_codebooks, :].clone()
+        # no mask
+        latent = self.model.coarse.embedding.from_codes(z, self.model.codec)
+        _, activations = self.model.coarse.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1024])] * layer_number
+        # extract activation from every/assigned layer
+ 
+        return activations[self.layer]
     
-        #return Seq2SeqLMOutput(
-        #     loss=loss,
-        #     logits=decoder_outputs.logits,
-        #     past_key_values=decoder_outputs.past_key_values,
-        #     decoder_hidden_states=decoder_outputs.hidden_states,
-        #     decoder_attentions=decoder_outputs.attentions,
-        #     cross_attentions=decoder_outputs.cross_attentions,
-        #     encoder_last_hidden_state=encoder_outputs.last_hidden_state,
-        #     encoder_hidden_states=encoder_outputs.hidden_states,
-        #     encoder_attentions=encoder_outputs.attentions,
-        # )
+
+
     
  

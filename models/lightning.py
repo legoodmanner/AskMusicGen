@@ -30,7 +30,7 @@ class DiscrimProbeModule(L.LightningModule):
         self.repr_extractor = gen_model
         # Set trainable MLP
         self.probe_mlp = MLP(
-            input_size=self.repr_extractor.model.decoder.config.hidden_size,
+            input_size= config.model.gen_model.output_dim,
             hidden_sizes= config.model.peft.repr_head.hidden_sizes,
             output_size= config.model.peft.repr_head.n_classes,
             dropout=config.model.peft.repr_head.dropout

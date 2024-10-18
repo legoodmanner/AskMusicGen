@@ -1,5 +1,7 @@
+# gen config
 data:
   sample_rate: 32000 # this is the wanted sample rate required for genmodel
+  preprocessors: [pad_or_truncate, resample]
 
 model:
   gen_model: 
@@ -7,6 +9,8 @@ model:
     version: small 
     extract_layer: 17 # would be overwritten if assigned in base config
     fps: 50
+    output_dim: 1024
+    
     
   
     

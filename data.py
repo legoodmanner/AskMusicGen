@@ -10,6 +10,7 @@ import numpy as np
 import pickle
 import h5py
 
+
 def time_to_frame(seq_in_sec, fps, n_frame):
     """
     seq_in_sec: [number of beat events]
@@ -29,28 +30,146 @@ def get_dataModule(config):
     }
     return dataModule_dict[dataConfig.name](config=config, **dataConfig)
 
+# Build a parent class for GTZANDataModuel and future DataModule (Not include FeautreDataModule)
+class BaseAudioDataModule(L.LightningDataModule):
+    def __init__(self):
+        super().__init__()
+        self.GAIN_FACTOR = torch.tensor(0.11512925464970229)  # Example gain factor, adjust as needed
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.sample_rate = None
+        self.config = None
+        self.data_dir = None
+        self.batch_size = None
+        self.num_workers = None
+        self.required_key = None
+        self.preprocessor_list = None # should be set in setup() by calling get_preprocessors()
 
-def get_aggregators(methods=None):
-    # get aggregators with 'list of str' or 'str' or None
-    agg_dict = {
-            'layer_mean': lambda a: torch.mean(a, axis=-3, keepdim=True),
-            'time_mean': lambda a: torch.mean(a, axis=-2, keepdim=True),
-    }
-    aggregators = []
-    if not methods: return aggregators
-    if isinstance(methods, list):
-        for method in methods:
-            aggregators.append(agg_dict[method])
-        aggregators.append(torch.squeeze)
-    elif isinstance(methods, str):
-        aggregators.append(agg_dict[methods])
-        aggregators.append(torch.squeeze)
-    else:
-        raise TypeError('incompatiable type for aggregation methods')
-    return aggregators
+    def get_preprocessors(self, preprocessors=None):
+        # careful with the order
+        preprocessor_dict = {
+            'pad_or_truncate': self.pad_or_truncate,
+            'resample': self.resample,
+            'monolize': self.monolize,
+            'normalize': self.normalize,
+            'ensure_max_of_audio': self.ensure_max_of_audio,
+        }
+        preprocessor_list = []
+        if not preprocessors:
+            return preprocessor_list
+        if isinstance(preprocessors, list):
+            for preprocessor in preprocessors:
+                preprocessor_list.append(preprocessor_dict[preprocessor])
+        elif isinstance(preprocessors, str):
+            preprocessor_list.append(preprocessor_dict[preprocessors])
+        else:
+            raise TypeError('incompatible type for preprocessors')
+        return preprocessor_list
+    
+    #################################
+    # Lots of preprocessing methods #
+    #################################
+    def pad_or_truncate(self, audio):
+        """
+        audio: seq_len
+        """
+        max_length = self.config.model.gen_model.max_length
+        if audio.size(-1) > max_length:
+            return audio[:, :max_length]
+        return torch.nn.functional.pad(audio, (0, max_length - audio.size(-1)))
+    
+    def resample(self, audio): 
+        orig_sample_rate = self.config.model.gen_model.sample
+        return torchaudio.functional.resample(audio, orig_sample_rate, self.sample_rate)
+    
+    def monolize(self, audio):
+        if len(audio.shape) == 2:
+            if audio.shape[0] == 2:
+                return audio.mean(dim=0, keepdim=True)
+            else:
+                return audio.mean(dim=1, keepdim=True)
+        else:
+            return audio.mean(dim=0, keepdim=True)
+    
+    def normalize(self, audio, db = -24):
+        """Normalizes the signal's volume to the specified db, in LUFS.
+        This is GPU-compatible, making for very fast loudness normalization.
 
-class GTZANDataModule(L.LightningDataModule):
-    def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, sample_rate: int = None, num_samples=650000, **kwargs):
+        Parameters
+        ----------
+        db : typing.Union[torch.Tensor, np.ndarray, float], optional
+            Loudness to normalize to, by default -24.0
+
+        Returns
+        -------
+        AudioSignal
+            Normalized audio signal.
+        """
+        db = self.config.model.gen_model.get('normalize_db') or db
+        db = torch.tensor(db).to(self.device)
+        ref_db = self.loudness()
+        gain = db - ref_db
+        gain = torch.exp(gain * self.GAIN_FACTOR)
+
+        audio = audio * gain[:, None, None]
+        return audio
+    
+    def ensure_max_of_audio(self, audio, max_amplitude=1.0):
+        """Ensures that ``abs(audio_data) <= max``.
+
+        Parameters
+        ----------
+        max : float, optional
+            Max absolute value of signal, by default 1.0
+
+        Returns
+        -------
+        AudioSignal
+            Signal with values scaled between -max and max.
+        """
+        max_amplitude = self.config.model.gen_model.get('max_amplitude') or max_amplitude
+        peak = audio.abs().max(dim=-1, keepdim=True)[0] # [batch, (channel), 1]
+        peak_gain = torch.ones_like(peak) # [batch, channel, 1]
+        peak_gain[peak > max_amplitude] = max_amplitude / peak[peak > max_amplitude] # [batch, (channel), 1]
+        audio = audio * peak_gain  # [batch, (channel), seq_len]
+        return audio
+    
+    def loudness(self):
+        """Calculates the loudness of the audio signal in LUFS.
+
+        Returns
+        -------
+        torch.Tensor
+            Loudness of the audio signal.
+        """
+        # Placeholder implementation for loudness calculation
+        # Replace with actual loudness calculation logic
+        return torch.tensor(-24.0).to(self.device)
+    
+    def collate_fn(self, batch):
+        waveforms, meta = [], {k:[] for k in self.required_key}
+        for waveform, info in batch:
+            for proc in self.preprocessor_list:
+                waveform = proc(waveform, **self.preprocess_kwargs)
+            waveforms.append(waveform)
+            # label preprocessing
+            if 'label' in info and 'label' in self.required_key:
+                meta['label'].append(torch.tensor(self.label_to_index[info['label']]))
+            if 'beat_t' in info and 'beat_f' in self.required_key:
+                meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
+
+        # Wrap the collected data
+        waveforms = torch.stack(waveforms)
+        for k, v in meta.items():
+            try:
+                meta[k] = torch.stack(v)
+            except:
+                pass
+        return waveforms, meta
+
+    
+
+class GTZANDataModule(BaseAudioDataModule):
+    def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, sample_rate: int = None, num_samples=650000, required_key=None, **kwargs):
         super().__init__()
         assert sample_rate is not None, 'Desired sample rate must be assigned manually'
         self.config = config
@@ -61,6 +180,7 @@ class GTZANDataModule(L.LightningDataModule):
         self.num_samples = num_samples
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.label_to_index = {}
+        self.required_key = required_key
         self.setup()
 
     def prepare_data(self):
@@ -76,30 +196,27 @@ class GTZANDataModule(L.LightningDataModule):
         for dataset in [self.train_dataset]:
             all_labels.update(meta['label'] for _, meta in dataset)
         self.label_to_index = {label: idx for idx, label in enumerate(sorted(all_labels))}
+        self.preprocessor_list = self.get_preprocessors(self.config.model.gen_model.get('preprocessors'))
         
-        # Apply transforms to the datasets
-    def pad_or_truncate(self, audio):
-        if audio.size(1) > self.num_samples:
-            return audio[:, :self.num_samples]
-        return torch.nn.functional.pad(audio, (0, self.num_samples - audio.size(1)))
     
-    def collate_fn(self, batch):
-        waveforms, meta = [], dict(label=[], beat_t=[], beat_f=[]),
-        for waveform, info in batch:
-            waveform = self.pad_or_truncate(waveform)
-            waveform = torchaudio.functional.resample(waveform, info['sample_rate'], self.sample_rate)
-            waveforms.append(waveform)
-            meta['label'].append(torch.tensor(self.label_to_index[info['label']]))
-            meta['beat_t'].append(np.array(info['beat_t']))
-            meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
-        # Wrap the collected data
-        waveforms = torch.stack(waveforms)
-        for k, v in meta.items():
-            try:
-                meta[k] = torch.stack(v)
-            except:
-                pass
-        return waveforms, meta
+    # def collate_fn(self, batch):
+    #     waveforms, meta = [], dict(label=[], beat_t=[], beat_f=[]),
+    #     for waveform, info in batch:
+    #         # waveform preprocessing
+    #         waveform = self.pad_or_truncate(waveform)
+    #         waveform = torchaudio.functional.resample(waveform, info['sample_rate'], self.sample_rate)
+    #         waveforms.append(waveform)
+    #         # label preprocessing
+    #         meta['label'].append(torch.tensor(self.label_to_index[info['label']]))
+    #         meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
+    #     # Wrap the collected data
+    #     waveforms = torch.stack(waveforms)
+    #     for k, v in meta.items():
+    #         try:
+    #             meta[k] = torch.stack(v)
+    #         except:
+    #             pass
+    #     return waveforms, meta
         
 
     def train_dataloader(self):
@@ -111,9 +228,6 @@ class GTZANDataModule(L.LightningDataModule):
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
 
-    def teardown(self, stage=None):
-        # Clean up any resources, if necessary
-        pass
     
 class FeatureDataset(Dataset):
     def __init__(self, root, subset):
@@ -188,7 +302,6 @@ class PreComputeDataModule(L.LightningDataModule):
         self.num_workers = num_workers
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.label_to_index = {}
-        self.aggregators = get_aggregators(kwargs.get('aggregators')) # list or str or None
         self.required_key = required_key
         self.setup()
 

@@ -4,6 +4,7 @@ data:
   batch_size: 64
   num_workers: 0
   aggregators: null #for this cache, all the time frame is aggregate into 1, no need additional aggregators
+  required_key: ['label'] # required target in key for meta
 
 model:
   peft:

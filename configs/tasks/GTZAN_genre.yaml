@@ -4,6 +4,9 @@ data:
   data_dir: '/home/lego/Database/GTZAN/raw'
   batch_size: 8
   num_workers: 0
+  max_length: 650000  # 30s approx
+  orig_sample_rate: 22050
+  required_key: ['label']
   
 model:
   peft:
