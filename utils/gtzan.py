@@ -1106,6 +1106,9 @@ class GTZAN(Dataset):
             elif self.subset == "testing":
                 self._walker = filtered_test
 
+        # set label to class index
+        self.label_to_index = {genre: i for i, genre in enumerate(gtzan_genres)}
+
     def __getitem__(self, n: int) -> Tuple[Tensor, dict]:
         """Load the n-th sample from the dataset.
 
@@ -1126,7 +1129,7 @@ class GTZAN(Dataset):
         item = load_gtzan_item(fileid, self._path, self._ext_audio)
         beat_t = load_gtzan_rhythm(fileid, self._path)
         waveform, sample_rate, label = item
-        info = dict(sample_rate=sample_rate, label=label, beat_t=beat_t,)
+        info = dict(sample_rate=sample_rate, label=self.label_to_index[label], beat_t=beat_t,)
         return waveform, info
 
     def __len__(self) -> int:
