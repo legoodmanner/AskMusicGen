@@ -20,6 +20,6 @@ model:
   peft: 
     use_feature: True
   gen_model:
-    extract_layer: 12
+    extract_layer: 17
 
   

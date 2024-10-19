@@ -1,7 +1,7 @@
 # gen model config
 data:
   sample_rate: 44100 # DAC codec sample rate
-  preprocess: [pad_or_truncate, resample, monolize, normalize, ensure_max_of_audio]
+  preprocessors: [pad_or_truncate, resample, monolize, normalize, ensure_max_of_audio]
 
 model:
   gen_model: 

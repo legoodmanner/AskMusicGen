@@ -73,7 +73,7 @@ class BaseAudioDataModule(L.LightningDataModule):
         """
         audio: seq_len
         """
-        max_length = self.config.model.gen_model.max_length
+        max_length = self.config.data.max_length
         if audio.size(-1) > max_length:
             audio = audio[:, :max_length]
         else:
@@ -81,7 +81,7 @@ class BaseAudioDataModule(L.LightningDataModule):
         return audio
 
     def resample(self, audio): 
-        orig_sample_rate = self.config.model.gen_model.sample
+        orig_sample_rate = self.config.data.orig_sample_rate
         audio = torchaudio.functional.resample(audio, orig_sample_rate, self.sample_rate)
         return audio
 
@@ -113,7 +113,7 @@ class BaseAudioDataModule(L.LightningDataModule):
             Normalized audio signal.
         """
         ref_db = -24.0
-        db = self.config.model.gen_model.get('normalize_db') or db
+        db = self.config.data.get('normalize_db') or db
         gain = db - ref_db
         gain = torch.exp(gain * self.GAIN_FACTOR)
         audio = audio * gain
@@ -132,7 +132,7 @@ class BaseAudioDataModule(L.LightningDataModule):
         AudioSignal
             Signal with values scaled between -max and max.
         """
-        max_amplitude = self.config.model.gen_model.get('max_amplitude') or max_amplitude
+        max_amplitude = self.config.data.get('max_amplitude') or max_amplitude
         peak = audio.abs().max(dim=-1, keepdim=True)[0] # [batch, (channel), 1]
         peak_gain = torch.ones_like(peak) # [batch, channel, 1]
         peak_gain[peak > max_amplitude] = max_amplitude / peak[peak > max_amplitude] # [batch, (channel), 1]
@@ -148,7 +148,7 @@ class BaseAudioDataModule(L.LightningDataModule):
             waveforms.append(waveform)
             # label preprocessing
             if 'label' in info and 'label' in self.required_key:
-                meta['label'].append(torch.tensor([info['label']])) #label should be a integer scalar
+                meta['label'].append(info['label']) #label should be a integer scalar
             if 'beat_t' in info and 'beat_f' in self.required_key:
                 meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
 
@@ -186,7 +186,7 @@ class GTZANDataModule(BaseAudioDataModule):
         self.test_dataset = GTZAN(root=self.data_dir, download=False, subset='testing', folder_in_archive='genres_original')
 
         # Create label mapping
-        self.preprocessor_list = self.get_preprocessors(self.config.model.gen_model.get('preprocessors'))
+        self.preprocessor_list = self.get_preprocessors(self.config.data.get('preprocessors'))
         
     
     # def collate_fn(self, batch):
@@ -345,12 +345,18 @@ class PreComputeDataModule(BaseAudioDataModule):
             
 
 class MTGAudioDataset(Dataset):  # TODO: need to finish this part
-    def __init__(self, root, subset, extract_layer, required_key):  # TODO: incoporate split_version into configuration. Change low quality to high quality source audios.
+    def __init__(self, root, subset,  required_key, split_version=0):  # TODO: incoporate split_version into configuration. Change low quality to high quality source audios.
+        super().__init__()
+        """
+        Folder structure: 
+        root -- mtg-jamendo-dataset -- data -- splits -- split-{split_version} -- autotagging_genre-{subset}.tsv
+             -- data -- folder_number -- mp3files
+        """
         if subset == 'valid':
             subset = 'validation'
 
         self.root = root
-        self.metadata_dir = os.path.join(root, f'data/splits/split-{split_version}/autotagging_genre-{subset}.tsv')
+        self.metadata_dir = os.path.join(root, f'mtg-jamendo-dataset/data/splits/split-{split_version}/autotagging_genre-{subset}.tsv')
         
         self.split_version = split_version
         self.metadata = open(self.metadata_dir, 'r').readlines()[1:]
@@ -359,39 +365,49 @@ class MTGAudioDataset(Dataset):  # TODO: need to finish this part
         self.all_tags = [line.split('\t')[5:] for line in self.metadata]
 
         assert len(self.all_paths) == len(self.all_tags) == len(self.metadata)
-        # read class2id
-        self.class2id = self.read_class2id()
-        self.id2class = {v: k for k, v in self.class2id.items()}
+        # set class2id
+        self.set_class2id_dicts()
+       
 
     def __getitem__(self, index):
-        audio_path = self.all_paths[index]
-        class_name = self.all_tags[index]
-        audio = torchaudio.load(os.path.join(self.root, audio_path))
-       
-        info = {'label': self.class2id[class_name]}
+        audio_path = os.path.join('data', self.all_paths[index])
+        class_names = self.all_tags[index] # multiple tags
+        print(audio_path)
+        audio, sr = torchaudio.load(os.path.join(self.root, audio_path))
+        info = {'label': self.get_class2id(class_names)}
         
         return audio, info
 
     def __len__(self):
         return len(self.metadata)
     
-    def read_class2id(self):
-        class2id = {}
+    def set_class2id_dicts(self):
+        class2id_dict = {}
         for subset in ['train', 'validation', 'test']:
-            data = open(os.path.join(self.root, f'data/splits/split-{self.split_version}/autotagging_genre-{subset}.tsv'), "r").readlines()
+            data = open(os.path.join(self.root, f'mtg-jamendo-dataset/data/splits/split-{self.split_version}/autotagging_genre-{subset}.tsv'), "r").readlines()
             for example in data[1:]:
                 tags = example.split('\t')[5:]
                 for tag in tags:
                     tag = tag.strip()
-                    if tag not in class2id:
-                        class2id[tag] = len(class2id)
-        return class2id
+                    if tag not in class2id_dict:
+                        class2id_dict[tag] = len(class2id_dict)
+        self.class2id = class2id_dict
+        self.id2class = {v: k for k, v in self.class2id.items()}
+    
+    def get_class2id(self, class_names):
+        # return the multi-hot encoding of the class names
+        classid = torch.zeros(len(self.class2id))
+        for class_name in class_names:
+            if class_name in self.class2id:
+                class_id = self.class2id[class_name]
+                classid[class_id] = 1
+        return classid
     
   
     
-class MTGDataModule(L.LightningDataModule):  # TODO: need to finish this part
+class MTGDataModule(BaseAudioDataModule):  # TODO: need to finish this part
     def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, sample_rate: int = None, num_samples=650000, required_key=None, **kwargs):  # TODO: incoporate split_version into configuration. Change low quality to high quality source audios.
-
+        super().__init__()
         # TODO: this path has to be input from the config file
         self.config = config
         self.data_dir = data_dir
@@ -408,16 +424,11 @@ class MTGDataModule(L.LightningDataModule):  # TODO: need to finish this part
         pass
 
     def setup(self, stage=None):
-        self.train_dataset = MTGAudioDataset(root=self.data_dir, subset='training', required_key=self.required_key)
+        self.train_dataset = MTGAudioDataset(root=self.data_dir, subset='train', required_key=self.required_key)
         self.val_dataset = MTGAudioDataset(root=self.data_dir, subset='validation', required_key=self.required_key)
-        self.test_dataset = MTGAudioDataset(root=self.data_dir, subset='testing', required_key=self.required_key)
+        self.test_dataset = MTGAudioDataset(root=self.data_dir, subset='test', required_key=self.required_key)
 
-        # Create label mapping
-        all_labels = set()
-        for dataset in [self.train_dataset]:
-            all_labels.update(meta['label'] for _, meta in dataset)
-        self.label_to_index = {label: idx for idx, label in enumerate(sorted(all_labels))}
-        self.preprocessor_list = self.get_preprocessors(self.config.model.gen_model.get('preprocessors'))
+        self.preprocessor_list = self.get_preprocessors(self.config.data.get('preprocessors'))
         
     
     # def collate_fn(self, batch):
@@ -453,28 +464,44 @@ class MTGDataModule(L.LightningDataModule):  # TODO: need to finish this part
 
 if __name__ == '__main__':
     from omegaconf import OmegaConf
-    def test1():
+    def testMTG():
         testconf = {
             'data': {
-                'name': 'genre_classification',
-                'data_dir': '../scratch/GTZAN/raw',
+                'name': 'mtg',
+                'data_dir': '../../Database/MTG/',
                 'batch_size': 4,
                 'num_workers': 0,
-                'sample_rate': 32000,
+                'orig_sample_rate': 44100,
+                'sample_rate': 44100,
+                'max_length': 44100 * 25,
+                'preprocessors': ['pad_or_truncate', 'resample', 'monolize', 'normalize', 'ensure_max_of_audio'],
+                'normalize_db': -24,
+                'max_amplitude': 1.0,
+            },
+            'model': {
+                'gen_model': {
+                    'fps': 100,
+                    'output_dim': 1280
+                }
             }
         }
         testconf = OmegaConf.create(testconf)
-        dm = get_dataModule(testconf)
-        # dm = GTZANDataModule(data_dir='/home/lego/Database/Data')
-        # dm.prepare_data()
-        dm.setup() 
+        print('start creating datamodule')
+        dm = MTGDataModule(config=testconf, data_dir=testconf.data.data_dir, batch_size=testconf.data.batch_size, num_workers=testconf.data.num_workers, sample_rate=testconf.data.sample_rate, required_key=['label'])
+        print('start setting up')
         dls = [dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()]
-        print(dm.label_to_index)
+        print('start iterating')
         for dl in dls:
             for data in dl:
-                    print([d.shape for d in data])
+                waveforms, meta = data
+                print(f"Waveforms shape: {waveforms.shape}")
+                for k, v in meta.items():
+                    print(f"{k} shape: {v.shape}")
+                    break
+                break
+            break
         
-    def test2():
+    def testGTZAN():
         testconf = {
             'data': {
                 'name': 'genre_classification',
@@ -508,4 +535,4 @@ if __name__ == '__main__':
                 break
             break
 
-    test2()
+    testMTG()

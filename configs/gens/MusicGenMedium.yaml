@@ -1,5 +1,6 @@
 data:
   sample_rate: 32000 # this is the wanted sample rate required for genmodel
+  preprocessors: [pad_or_truncate, resample]
 
 model:
   gen_model: 
