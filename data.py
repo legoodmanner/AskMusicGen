@@ -25,9 +25,10 @@ def time_to_frame(seq_in_sec, fps, n_frame):
 def get_dataModule(config):
     dataConfig = config.data
     dataModule_dict = {
-        'genre_classification': GTZANDataModule,
+        'genre_classification_GTZAN': GTZANDataModule,
         'genre_classification_on_feature': PreComputeDataModule,
         'beat_tracking_on_feature': PreComputeDataModule,
+        'genre_classification_MTG': MTGDataModule,
     }
     return dataModule_dict[dataConfig.name](config=config, **dataConfig)
 
@@ -164,7 +165,7 @@ class BaseAudioDataModule(L.LightningDataModule):
     
 
 class GTZANDataModule(BaseAudioDataModule):
-    def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, sample_rate: int = None, num_samples=650000, required_key=None, **kwargs):
+    def __init__(self, config, data_dir: str, batch_size: int = 8, num_workers: int = 0, sample_rate: int = None, num_samples=650000, required_key=None, **kwargs):
         super().__init__()
         assert sample_rate is not None, 'Desired sample rate must be assigned manually'
         self.config = config
@@ -372,7 +373,6 @@ class MTGAudioDataset(Dataset):  # TODO: need to finish this part
     def __getitem__(self, index):
         audio_path = os.path.join('data', self.all_paths[index])
         class_names = self.all_tags[index] # multiple tags
-        print(audio_path)
         audio, sr = torchaudio.load(os.path.join(self.root, audio_path))
         info = {'label': self.get_class2id(class_names)}
         
@@ -531,6 +531,10 @@ if __name__ == '__main__':
                 print(f"Waveforms shape: {waveforms.shape}")
                 for k, v in meta.items():
                     print(f"{k} shape: {v.shape}")
+                    """
+                    Waveforms shape: torch.Size([4, 1, 1102500])
+                    label shape: torch.Size([4, 87])
+                    """
                     break
                 break
             break

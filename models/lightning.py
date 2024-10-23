@@ -18,9 +18,9 @@ class DiscrimProbeModule(L.LightningModule):
         # Define loss function
         self.criterion = nn.CrossEntropyLoss()
         # Define metric function 
-        self.metric = getattr(
-            torchmetrics, 
-            config.model.peft.metric)(task="multiclass", num_classes=config.model.peft.repr_head.n_classes)
+        metric = config.model.peft.metric
+        self.metric = getattr(torchmetrics, metric.name)(**metric)
+        print('Using metric:', metric.name)
         # Whether use pre-computed feature
         if self.config.model.peft.get('use_feature'):
             print('using pre-compute feature to train')
@@ -67,13 +67,18 @@ class DiscrimProbeModule(L.LightningModule):
         inps, meta = batch
         logits = self(inps)
         val_loss = self.criterion(logits, meta['label'])
-        self.metric(logits, meta['label'])
+        self.metric(logits, meta['label'].long())
         self.log("val_loss", val_loss, on_step = True, on_epoch = False, batch_size = self.config.data.batch_size, prog_bar = True)
-        self.log("val_acc", self.metric, prog_bar=True)
+        
         return val_loss
 
     def on_validation_epoch_end(self):
-        self.log("val_acc_epoch", self.metric.compute())
+        if isinstance(self.metric, torchmetrics.Accuracy):
+            self.log("val_acc", self.metric.compute(), prog_bar=True)
+        elif isinstance(self.metric, torchmetrics.AUROC):
+            auc = self.metric.compute()
+            self.log("val_auc", auc, prog_bar=True)
+
 
 
 class SequentialProbeModule(L.LightningModule):

@@ -51,8 +51,10 @@ class FeatureExtractor(L.LightningModule):
             repr = self(wav)  #[bs, layer, (seq_len), 1024]
             if not self.mean_agg:
                 bs, layer, seq_len, dim = repr.shape
-                mini_crop = min(seq_len, meta['beat_f'].shape[-1])
-                meta['beat_f'] = meta['beat_f'][..., :mini_crop]
+                if 'beat_f' in meta:
+                    mini_crop = min(seq_len, meta['beat_f'].shape[-1])
+                    meta['beat_f'] = meta['beat_f'][..., :mini_crop]
+                else: mini_crop=seq_len
                 repr = repr[...,:mini_crop,:]
             else:
                 bs, layer, dim = repr.shape
@@ -74,12 +76,13 @@ class FeatureExtractor(L.LightningModule):
 
 if __name__ == '__main__':
     from data import get_dataModule
-    output_path = "/home/lego/Database/GTZAN/MusicGenSmall"
+    output_path = "/home/lego/Database/MTG/MusicGenSmall"
     modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/GTZAN_genre.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
     config = OmegaConf.merge(modelConfig, dataConfig)
     
-    model = FeatureExtractor(config, output_path, subset='train', mean_agg=False)
+    os.makedirs(output_path, exist_ok=True)
+    model = FeatureExtractor(config, output_path, subset='train', mean_agg=True)
     dl = get_dataModule(config)
 
     trainer = L.Trainer(accelerator="gpu", devices=1)

@@ -1,22 +1,23 @@
+# task config
 data:
-  name: genre_classification_GTZAN
+  name: genre_classification_MTG
   # data_dir: '/home/lego/Database/Data'
-  data_dir: '/home/lego/Database/GTZAN/raw'
-  batch_size: 8
+  data_dir: '../Database/MTG/raw'
+  batch_size: 2
   num_workers: 0
-  max_length: 650000  # 30s approx
-  orig_sample_rate: 22050
+  max_length: 1102500  # 25s approx (25 * 44100)
+  orig_sample_rate: 44100
   required_key: ['label']
-  
+
 model:
   peft:
     name: DiscrimProbeModule
-    metric:
-      name: Accuracy
-      task: multiclass
-      num_classes: 10
+    metric: 
+      name: AUROC
+      task: multilabel
+      num_labels: 87
     repr_head:
-      n_classes: 10
+      n_classes: 87
       hidden_sizes: 512
       dropout: 0.25
 

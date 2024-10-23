@@ -1,13 +1,12 @@
 # gen config
 data:
   sample_rate: 32000 # this is the wanted sample rate required for genmodel
-  preprocessors: [pad_or_truncate, resample]
+  preprocessors: [pad_or_truncate, monolize, resample] # in that order to be applied
 
 model:
   gen_model: 
     name: MusicGenSmall
     version: small 
-    extract_layer: 17 # would be overwritten if assigned in base config
     fps: 50
     output_dim: 1024
     

@@ -9,7 +9,10 @@ data:
 model:
   peft:
     name: DiscrimProbeModule
-    metric: Accuracy
+    metric:
+      name: Accuracy
+      task: multiclass
+      num_classes: 10
     repr_head:
       n_classes: 10
       hidden_sizes: 512
