@@ -1,10 +1,10 @@
 # task config
 data:
-  name: genre_classification_MTG
+  name: genre_classification_MTG_fearure
   # data_dir: '/home/lego/Database/Data'
-  data_dir: '../Database/MTG/raw'
-  batch_size: 8
-  num_workers: 4
+  data_dir: '../Database/MTG/' # would append with Pre-trained model name  
+  batch_size: 256
+  num_workers: 16
   max_length: 1102500  # 25s approx (25 * 44100)
   orig_sample_rate: 44100
   required_key: ['label']
@@ -20,9 +20,10 @@ model:
       n_classes: 87
       hidden_sizes: 512
       dropout: 0.25
+    use_feature: True
 
 training:
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 1
 
 # batch_size * accumulate_grad_batches = 64
 
