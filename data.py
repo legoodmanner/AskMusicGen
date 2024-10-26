@@ -29,6 +29,7 @@ def get_dataModule(config):
         'genre_classification_on_feature': PreComputeDataModule,
         'beat_tracking_on_feature': PreComputeDataModule,
         'genre_classification_MTG': MTGDataModule,
+        'genre_classification_MTG_fearure': PreComputeDataModule
     }
     return dataModule_dict[dataConfig.name](config=config, **dataConfig)
 
@@ -261,10 +262,18 @@ class FeatureHDF5Dataset(Dataset):
             # Load meta data
             meta_data = {}
             for key in self.required_key:
-                if key in ['beat_t', 'label']:
-                    meta_data[key] = f[self.indexs[idx]]['meta'][key][:]
-                else:
-                    meta_data[key] = torch.tensor(f[self.indexs[idx]]['meta'][key])
+                meta = f[self.indexs[idx]]['meta'][key][:]
+                if isinstance(meta, np.ndarray):
+                    meta_data[key] = torch.tensor(meta)
+                elif np.isscalar(meta):
+                    meta_data[key] = torch.tensor([meta])
+                # if list
+                elif isinstance(meta, list):
+                    meta_data[key] = torch.tensor(meta)
+                # if key in ['beat_t', 'label']:
+                #     meta_data[key] = f[self.indexs[idx]]['meta'][key][:]
+                # else:
+                #     meta_data[key] = torch.tensor(f[self.indexs[idx]]['meta'][key])
 
             # for key, value in group['meta'].items():
             #     # print(key, value, value.__class__, key.__class__)
@@ -468,7 +477,7 @@ if __name__ == '__main__':
         testconf = {
             'data': {
                 'name': 'mtg',
-                'data_dir': '../../Database/MTG/',
+                'data_dir': '../Database/MTG/raw',
                 'batch_size': 4,
                 'num_workers': 0,
                 'orig_sample_rate': 44100,
@@ -491,6 +500,8 @@ if __name__ == '__main__':
         print('start setting up')
         dls = [dm.train_dataloader(), dm.val_dataloader(), dm.test_dataloader()]
         print('start iterating')
+        # check id2class dict
+        print(dls[0].dataset.id2class)
         for dl in dls:
             for data in dl:
                 waveforms, meta = data
