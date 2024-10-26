@@ -20,7 +20,7 @@ class DiscrimProbeModule(L.LightningModule):
         # Define metric function 
         metric = config.model.peft.metric
         self.metric = getattr(torchmetrics, metric.name)(**metric)
-        print('Using metric:', metric.name)
+        print('Using metric:',self.metric.__class__.__name__)
         # Whether use pre-computed feature
         if self.config.model.peft.get('use_feature'):
             print('using pre-compute feature to train')
@@ -44,9 +44,7 @@ class DiscrimProbeModule(L.LightningModule):
             # Aggregate
             repr = torch.mean(repr, dim=-2) # TODO would try out different aggregation methods.
         else:  # inpt is precomputed feature (already aggregated)
-            # assert len(inps.shape) == 3, f'Features should be aggregated in advance, shape need to be [B, layer, dim], got {inps.shape}'
-            extract_layer = self.config.model.gen_model.extract_layer
-            repr = inps[:,extract_layer,:]
+            repr = inps
         logits = self.probe_mlp(repr)  # bsz, n_class
         return logits
     
@@ -54,8 +52,9 @@ class DiscrimProbeModule(L.LightningModule):
         inps, meta = batch
         logits = self(inps)
         train_loss = self.criterion(logits, meta['label'])
-        self.log("train_loss", train_loss, on_step = True, on_epoch = False, batch_size = self.config.data.batch_size, prog_bar = True)
+        self.log("train_loss", train_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         return train_loss
+    
 
     def configure_optimizers(self):
         optimizer= optim.AdamW(self.probe_mlp.parameters(),
@@ -68,14 +67,14 @@ class DiscrimProbeModule(L.LightningModule):
         logits = self(inps)
         val_loss = self.criterion(logits, meta['label'])
         self.metric(logits, meta['label'].long())
-        self.log("val_loss", val_loss, on_step = True, on_epoch = False, batch_size = self.config.data.batch_size, prog_bar = True)
+        self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         
         return val_loss
 
     def on_validation_epoch_end(self):
         if isinstance(self.metric, torchmetrics.Accuracy):
             self.log("val_acc", self.metric.compute(), prog_bar=True)
-        elif isinstance(self.metric, torchmetrics.AUROC):
+        elif self.metric.__class__.__name__ == 'MultilabelAUROC':
             auc = self.metric.compute()
             self.log("val_auc", auc, prog_bar=True)
 
