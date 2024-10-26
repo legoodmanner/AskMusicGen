@@ -76,9 +76,10 @@ class FeatureExtractor(L.LightningModule):
 
 if __name__ == '__main__':
     from data import get_dataModule
-    output_path = "/home/lego/Database/MTG/MusicGenSmall"
+    output_path = "../scratch/GS/MusicGenSmall"
     modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
+    dataConfig.data.required_key = ['key', 'scaled_tempo']
     config = OmegaConf.merge(modelConfig, dataConfig)
     
     os.makedirs(output_path, exist_ok=True)
