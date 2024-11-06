@@ -1,0 +1,20 @@
+# gen config
+data:
+  sample_rate: 22050 # this is the wanted sample rate required for genmodel
+  preprocessors: [pad_or_truncate, monolize, resample] # in that order to be applied
+
+model:
+  gen_model: 
+    name: MFCC
+    n_mfcc: 40
+    melkwargs: {"n_fft": 512, "hop_length": 256, "n_mels": 256, win_length: 512},
+    fps: 43
+    output_dim: 1024
+    
+    
+  
+    
+    
+
+  
+  
