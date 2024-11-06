@@ -5,7 +5,7 @@ data:
 
 model:
   gen_model: 
-    name: VampNet
+    name: VampNetCoarse
     version: coarse # coarse, c2f, mixed 
     extract_layer: 17 # would be overwritten if assigned in base config
     fps: 50

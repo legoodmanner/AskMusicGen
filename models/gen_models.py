@@ -69,9 +69,9 @@ class VampNetModule(torch.nn.Module):
         super().__init__()
         self.config = config
         self.model = VampNetInterface(
-            coarse_ckpt="./cache/vampnet/coarse.pth", 
-            coarse2fine_ckpt="./cache/vampnet/c2f.pth", 
-            codec_ckpt="./cache/vampnet/codec.pth",
+            coarse_ckpt="./cache/models/vampnet/coarse.pth", 
+            coarse2fine_ckpt="./cache/models/vampnet/c2f.pth", 
+            codec_ckpt="./cache/models/vampnet/codec.pth",
             device="cuda", 
             wavebeat_ckpt=None,
         )
@@ -108,7 +108,7 @@ class MFCCModule(torch.nn.Module):
     def forward(self, wav):
         mfcc = self.func(wav) # shape [batch, channel, seq_len]
         print(mfcc.shape)
-        
+
         return mfcc
     
 
