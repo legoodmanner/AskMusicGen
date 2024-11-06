@@ -16,14 +16,14 @@ class DiscrimProbeModule(L.LightningModule):
         super().__init__()
         self.config = config
         # Define loss function
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.BCEWithLogitsLoss() if config.experiment.task in 'MTG_genre_feature' else nn.CrossEntropyLoss()
         # Define metric function 
         metric = config.model.peft.metric
         self.metric = getattr(torchmetrics, metric.name)(**metric)
         print('Using metric:',self.metric.__class__.__name__)
         # Whether use pre-computed feature
         if self.config.model.peft.get('use_feature'):
-            print('using pre-compute feature to train')
+            print('using pre-compute feature to train') 
         # if self.config.model.peft.get('post_processor'):
             
         # Set pre-trained model as extractor (freeze)
@@ -65,6 +65,7 @@ class DiscrimProbeModule(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         inps, meta = batch
         logits = self(inps)
+
         val_loss = self.criterion(logits, meta['label'])
         self.metric(logits, meta['label'].long())
         self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
