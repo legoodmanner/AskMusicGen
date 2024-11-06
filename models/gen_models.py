@@ -9,6 +9,9 @@ def get_gen_model(config):
     model_dict = {
         'MusicGenSmall': MusicGenModule,
         'MusicGenMedium': MusicGenModule,
+        'VampNetCoarse': VampNetModule,
+        'MFCC': MFCCModule,
+        'Mel': MelModule,
     }
 
     return model_dict[modelConfig.name](config=config, **modelConfig)
@@ -88,6 +91,49 @@ class VampNetModule(torch.nn.Module):
         return activations[self.layer]
     
 
+
+class MFCCModule(torch.nn.Module):
+    def __init__(self, config=None, extract_layer=-1, **kwargs) -> None:
+        super().__init__()
+        self.config = config
+        self.layer = extract_layer
+        self.requires_grad_(False)
+        self.func = torchaudio.transforms.MFCC(
+            sample_rate=self.config.model.gen_model.sample_rate,
+            n_mfcc=self.config.model.gen_model.n_mfcc,
+            melkwargs=self.config.model.gen_model.melkwargs,
+        )
+
+    @torch.no_grad()
+    def forward(self, wav):
+        mfcc = self.func(wav) # shape [batch, channel, seq_len]
+        print(mfcc.shape)
+        
+        return mfcc
+    
+
+class MelModule(torch.nn.Module):
+    def __init__(self, config=None, extract_layer=-1, **kwargs) -> None:
+        super().__init__()
+        self.config = config
+        self.layer = extract_layer
+        self.requires_grad_(False)
+        self.func = torchaudio.transforms.MelSpectrogram(
+            sample_rate=self.config.data.sample_rate,
+            n_fft=self.config.model.gen_model.n_fft,
+            win_length=self.config.model.gen_model.win_length,
+            hop_length=self.config.model.gen_model.hop_length,
+            n_mels=self.config.model.gen_model.n_mels,
+        )
+    @torch.no_grad()
+    def forward(self, wav):
+       
+        mel = self.func(wav) # shape [batch, channel, n_mel, seq_len]
+        mel = mel.transpose(-1, -2).squeeze(1) # shape [batch, seq_len,  n_mel]
+        if self.layer is not None:
+            return mel
+        else:
+            return (mel,) # return as tuple for compatibility
 
     
  

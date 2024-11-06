@@ -2,7 +2,7 @@
 experiment:
   seed: 2024
   task: MTG_genre_feature
-  gen_model: MusicGenSmall
+  gen_model: Mel
   logger:
     # output_dir: '../scratch/outputs/'
     output_dir: 'outputs/'
@@ -14,13 +14,19 @@ experiment:
 training:
   learning_rate: 0.001
   weight_decay: 0.01
-  epochs: 1000 # max epoch
+  epochs: 1200 # max epoch
   log_step: 5
   val_check_interval: 1
+  accumulate_grad_batches: 1
 
 model:
   gen_model:
-      extract_layer: 15
+      extract_layer: -1
+
+data:
+  batch_size: 256
+  num_workers: 4
+
   
 
   

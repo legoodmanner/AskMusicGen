@@ -35,7 +35,7 @@ class DiscrimProbeModule(L.LightningModule):
         print('Using metric:',self.metric.__class__.__name__)
         # Whether use pre-computed feature
         if self.config.model.peft.get('use_feature'):
-            print('using pre-compute feature to train')
+            print('using pre-compute feature to train') 
         # if self.config.model.peft.get('post_processor'):
             
         # Set pre-trained model as extractor (freeze)
@@ -85,8 +85,8 @@ class DiscrimProbeModule(L.LightningModule):
         else:
             label = meta[self.config.data.required_key[0]]
         logits = self(inps)
-        val_loss = self.criterion(logits, label)
-        self.metric(logits, label.long())
+        val_loss = self.criterion(logits, meta['label'])
+        self.metric(logits, meta['label'].long())
         self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         
         return val_loss
