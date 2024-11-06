@@ -183,6 +183,7 @@ class Experiment:
             gradient_clip_val=0.5,
             gradient_clip_algorithm='value',
             accumulate_grad_batches= self.config.training.accumulate_grad_batches,
+            enable_checkpointing=False, # Disable saving checkpoint
         )
 
         ckpt_path = self.config.training.get('start_from_ckpt')

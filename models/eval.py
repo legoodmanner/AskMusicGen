@@ -3,6 +3,21 @@ from torchmetrics import Metric
 from models.layers import dbnProcessor
 from mir_eval.beat import f_measure as beat_f1
 
+def get_metric_from_task(config):
+    task2metric = {
+        "GTZAN_rhythm": BeatFMeasure,
+        "GS_key": KeyAccRefined,
+        "GTZAN_genre": torchmetrics.Accuracy,
+        "MTG_genre": torchmetrics.AUROC,
+        'GS_tempo': BCEBeatFMeasure
+    }
+    metric_config = config.model.peft.metric
+    task = config.experiment.task.strip('_feature')
+    metric = task2metric[task](**(metric_config if metric_config is not None else {}))
+    return metric
+   
+
+
 class BeatF1MedianScore(Metric):
     def __init__(self, fps, **kwargs):
         super().__init__(**kwargs)
@@ -149,3 +164,37 @@ class BeatFMeasure(BCEBeatFMeasure):
             f_measure = mir_eval.util.f_measure(precision, recall)
         
         return torch.tensor(f_measure)
+
+class KeyAccRefined(Metric):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("scores", default=[], dist_reduce_fx=None)
+        self.classes = """C major, Db major, D major, Eb major, E major, F major, Gb major, G major, Ab major, A major, Bb major, B major, C minor, Db minor, D minor, Eb minor, E minor, F minor, Gb minor, G minor, Ab minor, A minor, Bb minor, B minor""".split(", ")
+        self.class2id = {c: i for i, c in enumerate(self.classes)}
+        self.id2class = {v: k for k, v in self.class2id.items()}
+        
+    def update(self, preds: torch.Tensor, labels: torch.Tensor):
+        if preds.dim() == 2:
+            preds = preds.argmax(dim=-1)
+            preds = preds.long()
+        correct = preds == labels
+        # transfer preds, labels to long
+        scores = [
+            mir_eval.key.weighted_score(
+                self.id2class[ref_key.item()], self.id2class[est_key.item()]
+            )
+            for ref_key, est_key in zip(labels, preds)
+        ]
+        self.correct += torch.sum(correct)
+        self.total += len(labels)
+        self.scores += scores
+
+    def compute(self):
+        if self.total == 0:
+            return torch.tensor(0.0)
+        accuracy = self.correct.float() / self.total
+        scores = torch.tensor(self.scores).mean()
+        return scores
+

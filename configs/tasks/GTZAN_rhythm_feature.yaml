@@ -11,7 +11,7 @@ model:
   peft:
     use_feature: True
     name: SequentialProbeModule
-    metric: F1Score #TODO now hard code, need to be soft
+    metric: null
     repr_head:
       n_classes: 2
       hidden_sizes: 512
