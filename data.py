@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import h5py
 import omegaconf
+import json
 
 
 def time_to_frame(seq_in_sec, fps, n_frame):
@@ -31,6 +32,7 @@ def get_dataModule(config):
         'genre_classification_MTG': MTGDataModule,
         'genre_classification_MTG_fearure': PreComputeDataModule,
         'key_GS': GSDataModuel,
+        'key_GS_feature': PreComputeDataModule,
     }
     return dataModule_dict[dataConfig.name](config=config, **dataConfig)
 
@@ -150,10 +152,15 @@ class BaseAudioDataModule(L.LightningDataModule):
                 waveform = proc(waveform)
             waveforms.append(waveform)
             # label preprocessing
-            if 'label' in info and 'label' in self.required_key:
-                meta['label'].append(info['label']) #label should be a integer scalar
-            if 'beat_t' in info and 'beat_f' in self.required_key:
-                meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
+            for k in self.required_key:
+                if k in info:
+                    if k == 'beat_f': 
+                        meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
+                    else:
+                        meta[k].append(info[k])
+                else:
+                    raise ValueError(f"Required key {k} not found in the data's info")
+
 
         # Wrap the collected data
         waveforms = torch.stack(waveforms)
@@ -204,12 +211,13 @@ class GTZANDataModule(BaseAudioDataModule):
 
 
 class GSDataModuel(BaseAudioDataModule):
-    def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, required_key=None, **kwargs):
+    def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, required_key=None, sample_rate= None, **kwargs):
         super().__init__()
         self.config = config
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.sample_rate = sample_rate
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.required_key = required_key
         self.setup()
@@ -276,28 +284,13 @@ class FeatureHDF5Dataset(Dataset):
             # Load meta data
             meta_data = {}
             for key in self.required_key:
-                meta = f[self.indexs[idx]]['meta'][key][:]
-                if isinstance(meta, np.ndarray):
-                    meta_data[key] = torch.tensor(meta)
-                elif np.isscalar(meta):
-                    meta_data[key] = torch.tensor([meta])
-                # if list
-                elif isinstance(meta, list):
-                    meta_data[key] = torch.tensor(meta)
-                # if key in ['beat_t', 'label']:
-                #     meta_data[key] = f[self.indexs[idx]]['meta'][key][:]
-                # else:
-                #     meta_data[key] = torch.tensor(f[self.indexs[idx]]['meta'][key])
+                m = f[self.indexs[idx]]['meta'][key]
+                if m.shape == ():  # Scalar datasets have an empty shape
+                    meta = m[()]
+                else:
+                    meta = m[:]
 
-            # for key, value in group['meta'].items():
-            #     # print(key, value, value.__class__, key.__class__)
-            #     if key in ['beat_t']:
-            #         meta_data[key] = value
-            #     elif key in ['label']:
-            #         meta_data[key] = value
-            #     else:
-            #         meta_data[key] = torch.tensor(value)
-                    
+                meta_data[key] = torch.tensor(meta)                    
 
         if self.transform:
             repr_data = self.transform(repr_data)
@@ -427,7 +420,10 @@ class GSDataset(Dataset):
             frame_offset=int(meta['clip']['clip_offset'] * 44100), 
             num_frames=int(meta['clip']['clip_duration'] * 44100)
         )
-        tempo = (meta['extra']['beatport_metadata']['BP BPM'])
+        try:
+            tempo = (meta['extra']['beatport_metadata']['BP BPM'])
+        except:
+            tempo = 0
         if tempo == '' or tempo == None:
             tempo = 0
         else:
@@ -487,6 +483,7 @@ class MTGAudioDataset(Dataset):  # TODO: need to finish this part
                         class2id_dict[tag] = len(class2id_dict)
         self.class2id = class2id_dict
         self.id2class = {v: k for k, v in self.class2id.items()}
+        # save the id2class dict:
     
     def get_class2id(self, class_names):
         # return the multi-hot encoding of the class names
@@ -523,27 +520,6 @@ class MTGDataModule(BaseAudioDataModule):  # TODO: need to finish this part
         self.test_dataset = MTGAudioDataset(root=self.data_dir, subset='test', required_key=self.required_key)
 
         self.preprocessor_list = self.get_preprocessors(self.config.data.get('preprocessors'))
-        
-    
-    # def collate_fn(self, batch):
-    #     waveforms, meta = [], dict(label=[], beat_t=[], beat_f=[]),
-    #     for waveform, info in batch:
-    #         # waveform preprocessing
-    #         waveform = self.pad_or_truncate(waveform)
-    #         waveform = torchaudio.functional.resample(waveform, info['sample_rate'], self.sample_rate)
-    #         waveforms.append(waveform)
-    #         # label preprocessing
-    #         meta['label'].append(torch.tensor(self.label_to_index[info['label']]))
-    #         meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
-    #     # Wrap the collected data
-    #     waveforms = torch.stack(waveforms)
-    #     for k, v in meta.items():
-    #         try:
-    #             meta[k] = torch.stack(v)
-    #         except:
-    #             pass
-    #     return waveforms, meta
-        
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=self.collate_fn)
@@ -605,15 +581,13 @@ if __name__ == '__main__':
                 'batch_size': 4,
                 'num_workers': 0,
                 'sample_rate': 32000,
+                'preprocessors': ['pad_or_truncate', 'resample'],
             },
             'model': {
                 'gen_model': {
-                    'max_length': 22050 * 25,
-                    'sample': 22050,
                     'fps': 100,
-                    'preprocessors': ['pad_or_truncate', 'resample', 'monolize', 'normalize', 'ensure_max_of_audio'],
-                    'normalize_db': -24,
-                    'max_amplitude': 1.0,
+                    
+
                 }
             }
         }
@@ -634,5 +608,50 @@ if __name__ == '__main__':
                     break
                 break
             break
+        
+    def testGS():
+        testconf = {
+            'data': {
+                'name': 'key_GS',
+                'data_dir': '../scratch/GS/raw',
+                'batch_size': 8,
+                'num_workers': 4,
+                'sample_rate': 32000,
+                'orig_sample_rate': 44100,
+                'preprocessors': ['pad_or_truncate', 'resample'],
+                'sample_rate': 44100,
+                'max_length': 44100 * 25,
+                'required_key': ['key', 'scaled_tempo'],
+            },
+            'model': {
+                'gen_model': {
+                    'fps': 100,
+                }
+            }
+        }
+        testconf = OmegaConf.create(testconf)
+        dm = GSDataModuel(
+            config=testconf, 
+            data_dir=testconf.data.data_dir, 
+            batch_size=testconf.data.batch_size, 
+            num_workers=testconf.data.num_workers, 
+            sample_rate=testconf.data.sample_rate, 
+            required_key=testconf.data.required_key
+        )
+        dm.setup()
+        dls = [dm.val_dataloader(), dm.test_dataloader()]
+        for dl in dls:
+            for data in dl:
+                waveforms, meta = data
+                print(f"Waveforms shape: {waveforms.shape}")
+                for k, v in meta.items():
+                    print(f"{k} shape: {v}")
+                    """
+                    Waveforms shape: torch.Size([4, 1, 1102500])
+                    label shape: torch.Size([4, 87])
+                    """
+                    break
+                break
+            break
 
-    testMTG()
+    testGS()

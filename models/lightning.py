@@ -4,22 +4,34 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn as nn
-import torchmetrics # import Accuracy, F1Score
-import matplotlib.pyplot as plt
 
 from models.gen_models import get_gen_model
 from models.layers import *
-from models.eval import BeatF1MedianScore, BeatFMeasure
+from models.eval import get_metric_from_task
+from models.loss import MaskedMSEWithLogitsLoss
+
+def get_loss_from_task(config):
+    task2loss = {
+        "GTZAN_rhythm": nn.CrossEntropyLoss,
+        "GS_key": nn.CrossEntropyLoss,
+        "GTZAN_genre": nn.CrossEntropyLoss,
+        "MTG_genre": nn.BCEWithLogitsLoss,
+        "GS_tempo": MaskedMSEWithLogitsLoss,
+    }
+
+    loss_config = config.model.peft.get('loss')
+    task = config.experiment.task.strip('_feature')
+    loss = task2loss[task](**(loss_config if loss_config is not None else {}))
+    return loss
 
 class DiscrimProbeModule(L.LightningModule):
     def __init__(self, gen_model, config):
         super().__init__()
         self.config = config
         # Define loss function
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = get_loss_from_task(config)
         # Define metric function 
-        metric = config.model.peft.metric
-        self.metric = getattr(torchmetrics, metric.name)(**metric)
+        self.metric = get_metric_from_task(config)
         print('Using metric:',self.metric.__class__.__name__)
         # Whether use pre-computed feature
         if self.config.model.peft.get('use_feature'):
@@ -50,8 +62,12 @@ class DiscrimProbeModule(L.LightningModule):
     
     def training_step(self, batch, batch_idx):
         inps, meta = batch
+        if 'label' in meta:
+            label = meta['label']
+        else:
+            label = meta[self.config.data.required_key[0]]
         logits = self(inps)
-        train_loss = self.criterion(logits, meta['label'])
+        train_loss = self.criterion(logits, label)
         self.log("train_loss", train_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         return train_loss
     
@@ -64,19 +80,26 @@ class DiscrimProbeModule(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         inps, meta = batch
+        if 'label' in meta:
+            label = meta['label']
+        else:
+            label = meta[self.config.data.required_key[0]]
         logits = self(inps)
-        val_loss = self.criterion(logits, meta['label'])
-        self.metric(logits, meta['label'].long())
+        val_loss = self.criterion(logits, label)
+        self.metric(logits, label.long())
         self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         
         return val_loss
 
     def on_validation_epoch_end(self):
-        if isinstance(self.metric, torchmetrics.Accuracy):
+        if self.metric.__class__.__name__ == 'MulticlassAccuracy': 
             self.log("val_acc", self.metric.compute(), prog_bar=True)
         elif self.metric.__class__.__name__ == 'MultilabelAUROC':
             auc = self.metric.compute()
             self.log("val_auc", auc, prog_bar=True)
+        elif self.metric.__class__.__name__ == 'KeyAccRefined':
+            key_acc = self.metric.compute()
+            self.log("val_key_acc_refined", key_acc, prog_bar=True)
 
 
 
@@ -85,7 +108,7 @@ class SequentialProbeModule(L.LightningModule):
         super().__init__()
         self.config = config
         self.criterion = nn.CrossEntropyLoss(label_smoothing=0.2, weight=torch.tensor([0.1, 0.9]))
-        self.metric = BeatFMeasure(label_freq=config.model.gen_model.fps)
+        self.metric = get_metric_from_task(config)
         if self.config.model.peft.get('use_feature'):
             print('using pre-compute feature to train')
         self.repr_extractor = gen_model

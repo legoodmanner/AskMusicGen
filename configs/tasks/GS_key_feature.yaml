@@ -1,10 +1,10 @@
 # task config
 data:
-  name: key_GS
+  name: key_GS_feature
   # data_dir: '/home/lego/Database/Data'
-  data_dir: '../scratch/GS/raw'
-  batch_size: 8
-  num_workers: 4
+  data_dir: 'cache/GS/'
+  batch_size: 128
+  num_workers: 8
   max_length: 1323000  # 25s approx (30 * 44100)
   orig_sample_rate: 44100
   required_key: ['key']
@@ -17,6 +17,7 @@ model:
       n_classes: 24
       hidden_sizes: 512
       dropout: 0.25
+    use_feature: True
 
 training:
   accumulate_grad_batches: 8

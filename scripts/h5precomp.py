@@ -88,12 +88,12 @@ if __name__ == '__main__':
 
     trainer = L.Trainer(accelerator="gpu", devices=1)
 
-    print('extracting train...')
-    trainer.predict(model, dataloaders=dl.train_dataloader())
+    # print('extracting train...')
+    # trainer.predict(model, dataloaders=dl.train_dataloader())
 
-    model.subset = 'valid'
-    print('extracting valid...')
-    trainer.predict(model, dataloaders=dl.val_dataloader())
+    # model.subset = 'valid'
+    # print('extracting valid...')
+    # trainer.predict(model, dataloaders=dl.val_dataloader())
 
     model.subset = 'test'
     print('extracting test...')

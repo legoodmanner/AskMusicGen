@@ -12,8 +12,7 @@ data:
 model:
   peft:
     name: DiscrimProbeModule
-    metric: 
-      name: AUROC
+    metric: #AUROC
       task: multilabel
       num_labels: 87
     repr_head:
