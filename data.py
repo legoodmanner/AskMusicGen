@@ -7,7 +7,7 @@ from utils.gtzan import GTZAN
 from torchaudio.transforms import MelSpectrogram
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-import pickle
+import pandas as pd
 import h5py
 import omegaconf
 
@@ -29,7 +29,8 @@ def get_dataModule(config):
         'genre_classification_on_feature': PreComputeDataModule,
         'beat_tracking_on_feature': PreComputeDataModule,
         'genre_classification_MTG': MTGDataModule,
-        'genre_classification_MTG_fearure': PreComputeDataModule
+        'genre_classification_MTG_fearure': PreComputeDataModule,
+        'key_GS': GSDataModuel,
     }
     return dataModule_dict[dataConfig.name](config=config, **dataConfig)
 
@@ -190,25 +191,6 @@ class GTZANDataModule(BaseAudioDataModule):
         # Create label mapping
         self.preprocessor_list = self.get_preprocessors(self.config.data.get('preprocessors'))
         
-    
-    # def collate_fn(self, batch):
-    #     waveforms, meta = [], dict(label=[], beat_t=[], beat_f=[]),
-    #     for waveform, info in batch:
-    #         # waveform preprocessing
-    #         waveform = self.pad_or_truncate(waveform)
-    #         waveform = torchaudio.functional.resample(waveform, info['sample_rate'], self.sample_rate)
-    #         waveforms.append(waveform)
-    #         # label preprocessing
-    #         meta['label'].append(torch.tensor(self.label_to_index[info['label']]))
-    #         meta['beat_f'].append(time_to_frame(info['beat_t'], fps=self.config.model.gen_model.fps, n_frame=None).clone().detach())
-    #     # Wrap the collected data
-    #     waveforms = torch.stack(waveforms)
-    #     for k, v in meta.items():
-    #         try:
-    #             meta[k] = torch.stack(v)
-    #         except:
-    #             pass
-    #     return waveforms, meta
         
 
     def train_dataloader(self):
@@ -220,6 +202,38 @@ class GTZANDataModule(BaseAudioDataModule):
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
 
+
+class GSDataModuel(BaseAudioDataModule):
+    def __init__(self, config, data_dir: str, batch_size: int = 32, num_workers: int = 4, required_key=None, **kwargs):
+        super().__init__()
+        self.config = config
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.required_key = required_key
+        self.setup()
+
+    def prepare_data(self):
+        pass
+
+    def setup(self, stage=None):
+        self.train_dataset = GSDataset(root=self.data_dir, subset='train')
+        self.val_dataset = GSDataset(root=self.data_dir, subset='valid')
+        self.test_dataset = GSDataset(root=self.data_dir, subset='test')
+        
+        self.preprocessor_list = self.get_preprocessors(self.config.data.get('preprocessors'))
+
+    def train_dataloader(self):
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=self.collate_fn)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+
+    
     
 class FeatureDataset(Dataset):
     def __init__(self, root, subset):
@@ -353,7 +367,78 @@ class PreComputeDataModule(BaseAudioDataModule):
                 metas[k] = torch.stack(v)
         return torch.stack(reprs), metas
             
-
+class GSDataset(Dataset):
+    """
+    Sample data for ginatsteps_clip.json
+    "0005061-0": {
+        "clip": {
+        "audio_duration": 120.058776,
+        "audio_uid": "0005061",
+        "clip_duration": 30.0,
+        "clip_idx": 0,
+        "clip_offset": 0.0
+        },
+        "extra": {
+        "annotations": {
+            "C": "2",
+            "ID": "5061",
+            "MANUAL KEY": "D# minor"
+        },
+        "beatport_metadata": {
+            "ARTIST": "Philippe Van Mullem",
+            "BP BPM": "132",
+            "BP GENRE": "Trance",
+            "BP KEY": "D# major",
+            "ID": "5061",
+            "LABEL": "Bonzai Classics",
+            "MIX": "Progress Mix",
+            "SONG TITLE": "Canopy"
+        },
+        "genre": "trance\n",
+        "giantsteps.genre": "#@format: tag\ttimestamp(float)\tname(str)\t[weight(float)]\ntag\t0\ttrance\n",
+        "giantsteps.key": "#@format: key\ttimestamp(float)\tkey(string)\t[confidence(int)]\t[comment(string)]\nkey\t0\td# minor\t2\t\n",
+        "id": 5061,
+        "key": "d# minor\t2\t\n"
+        },
+        "split": "train",
+        "y": "Eb minor"
+    },
+    """
+    def __init__(self, root, subset):
+        super().__init__()
+        self.root = root
+        self.subset = subset
+        # there are 24 classes in total
+        self.classes = """C major, Db major, D major, Eb major, E major, F major, Gb major, G major, Ab major, A major, Bb major, B major, C minor, Db minor, D minor, Eb minor, E minor, F minor, Gb minor, G minor, Ab minor, A minor, Bb minor, B minor""".split(", ")
+        self.class2id = {c: i for i, c in enumerate(self.classes)}
+        self.id2class = {v: k for k, v in self.class2id.items()}
+        self.min_bpm = 40
+        self.max_bpm = 250
+        self.metadata = pd.read_json(os.path.join(self.root, 'giantsteps_clips.json')).T
+        # filter the split out
+        self.metadata = self.metadata[self.metadata['split'] == self.subset]
+        # self.metadata = self.metadata.to_dict(orient='records')
+    
+    def __getitem__(self, index):
+        meta = self.metadata.iloc[index]
+        aids = meta['extra']['id']
+        audio, sr = torchaudio.load(
+            os.path.join(self.root, 'audio', f"{aids}.LOFI.mp3"), 
+            frame_offset=int(meta['clip']['clip_offset'] * 44100), 
+            num_frames=int(meta['clip']['clip_duration'] * 44100)
+        )
+        tempo = (meta['extra']['beatport_metadata']['BP BPM'])
+        if tempo == '' or tempo == None:
+            tempo = 0
+        else:
+            tempo = float(tempo)
+        key = meta['y']
+        info = {'tempo': tempo, 'key': self.class2id[key], 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm)}
+        return audio, info
+   
+    def __len__(self):
+        return len(self.metadata)
+    
 class MTGAudioDataset(Dataset):  # TODO: need to finish this part
     def __init__(self, root, subset,  required_key, split_version=0):  # TODO: incoporate split_version into configuration. Change low quality to high quality source audios.
         super().__init__()
