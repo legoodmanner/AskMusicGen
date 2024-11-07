@@ -37,9 +37,11 @@ class FeatureExtractor(L.LightningModule):
             self.h5_file.close()
 
     def forward(self, wav):
+        # print("Extracting features...")
         repr = self.repr_extractor(wav)
-        assert isinstance(repr, tuple)
-        repr = torch.stack(repr) #[layer, bs, seq_len, 1024]
+        # print("Finished extracting features")
+        if isinstance(repr, tuple):
+            repr = torch.stack(repr) #[layer, bs, seq_len, 1024]
         repr = repr.permute(1,0,2,3)  #[bs, layer, seq_len, 1024]
         if self.mean_agg:
             repr = repr.mean(-2) #[bs, layer, 1024]
@@ -47,8 +49,11 @@ class FeatureExtractor(L.LightningModule):
     
     def predict_step(self, batch, batch_idx):
         with torch.no_grad():
+            # print(f"Extracting features for batch {batch_idx}")
             wav, meta = batch
+            # print("forwarding...")
             repr = self(wav)  #[bs, layer, (seq_len), 1024]
+            # print("finished")
             if not self.mean_agg:
                 bs, layer, seq_len, dim = repr.shape
                 if 'beat_f' in meta:
@@ -76,16 +81,17 @@ class FeatureExtractor(L.LightningModule):
 
 if __name__ == '__main__':
     from data import get_dataModule
-    output_path = "/home/lego/Database/MTG/VampNet"
+    # output_path = "/home/lego/Database/MTG/VampNet"
     modelConfig = OmegaConf.load('configs/gens/VampNet.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    # dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
 
     # For pace part:
-    # output_path = "../scratch/GS/MusicGenSmall"
+    output_path = "../scratch/MTG/VampNet"
     # modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
-    # dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    # dataConfig.data.required_key = ['key', 'scaled_tempo']
+    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
+    dataConfig.data.required_key = ['key', 'scaled_tempo']
     config = OmegaConf.merge(modelConfig, dataConfig)
+    print("batch:" , config.data.batch_size)
     
     os.makedirs(output_path, exist_ok=True)
     print(f"Initializing feature extraction model")

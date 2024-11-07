@@ -149,6 +149,7 @@ class BaseAudioDataModule(L.LightningDataModule):
         waveforms, meta = [], {k:[] for k in self.required_key}
         for waveform, info in batch:
             for proc in self.preprocessor_list:
+                # print(f"Processing {proc.__name__}")
                 waveform = proc(waveform)
             waveforms.append(waveform)
             # label preprocessing
@@ -399,7 +400,7 @@ class GSDataset(Dataset):
     """
     def __init__(self, root, subset):
         super().__init__()
-        self.root = root
+        self.root = root if root.split('/')[-1] == 'key' else os.path.join(root, 'key')
         self.subset = subset
         # there are 24 classes in total
         self.classes = """C major, Db major, D major, Eb major, E major, F major, Gb major, G major, Ab major, A major, Bb major, B major, C minor, Db minor, D minor, Eb minor, E minor, F minor, Gb minor, G minor, Ab minor, A minor, Bb minor, B minor""".split(", ")
