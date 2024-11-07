@@ -8,3 +8,7 @@
 - [ ] GS-Tempo
 - [X] MTG-Genre
 - [ ] ?-Transcribition 
+
+
+Notice:
+Disable the weight initialization in LAC in VampNet
