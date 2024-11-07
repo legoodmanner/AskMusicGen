@@ -81,15 +81,22 @@ class VampNetModule(torch.nn.Module):
     # TODO: fine2coarse still not implemented
     @torch.no_grad()
     def forward(self, wav):
-        z = self.model.codec.encode(wav, self.config.data.sample_rate)['z']
+        # print(" vampnet inside forward")
+        z = self.model.codec.encode(wav, self.config.data.sample_rate)['codes']
+        # print(" vampnet z shape", z.shape)
         z = z[:, : self.model.coarse.n_codebooks, :].clone()
+        # print(" vampnet z shape after", z.shape)
         # no mask
+        # print("transfer code to latent")
         latent = self.model.coarse.embedding.from_codes(z, self.model.codec)
-        _, activations = self.model.coarse.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1024])] * layer_number
+        # print(" vampnet latent shape", latent.shape)
+        _, activations = self.model.coarse.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1280])] * layer_number
+        # print(" vampnet activations shape", activations.shape)
         # extract activation from every/assigned layer
- 
-        return activations[self.layer]
-    
+        if self.layer is not None:
+            return activations[self.layer]
+        else:
+            return activations    
 
 
 class MFCCModule(torch.nn.Module):

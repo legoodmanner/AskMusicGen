@@ -4,7 +4,7 @@ data:
   # data_dir: '/home/lego/Database/Data'
   data_dir: '../scratch/GS/raw'
   batch_size: 8
-  num_workers: 4
+  num_workers: 0
   max_length: 1323000  # 25s approx (30 * 44100)
   orig_sample_rate: 44100
   required_key: ['key']
