@@ -33,6 +33,8 @@ def get_dataModule(config):
         'genre_classification_MTG_fearure': PreComputeDataModule,
         'key_GS': GSDataModuel,
         'key_GS_feature': PreComputeDataModule,
+        'tempo_GS': GSDataModuel,
+        'tempo_GS_feature': PreComputeDataModule,
     }
     return dataModule_dict[dataConfig.name](config=config, **dataConfig)
 
@@ -227,9 +229,13 @@ class GSDataModuel(BaseAudioDataModule):
         pass
 
     def setup(self, stage=None):
-        self.train_dataset = GSDataset(root=self.data_dir, subset='train')
-        self.val_dataset = GSDataset(root=self.data_dir, subset='valid')
-        self.test_dataset = GSDataset(root=self.data_dir, subset='test')
+        if self.config.data.name == 'key_GS':
+            datasetClass = GSKeyDataset
+        elif self.config.data.name == 'tempo_GS':
+            datasetClass = GSTempoDataset
+        self.train_dataset = datasetClass(root=self.data_dir, subset='train')
+        self.val_dataset = datasetClass(root=self.data_dir, subset='valid')
+        self.test_dataset = datasetClass(root=self.data_dir, subset='test')
         
         self.preprocessor_list = self.get_preprocessors(self.config.data.get('preprocessors'))
 
@@ -265,7 +271,7 @@ class FeatureHDF5Dataset(Dataset):
     def __init__(self, root, subset, extract_layer, required_key, transform=None):
         
         self.hdf5_path = os.path.join(root, subset + '.h5')
-        assert os.path.isfile(self.hdf5_path)
+        assert os.path.isfile(self.hdf5_path), f"File {self.hdf5_path} not found"
         self.transform = transform
         self.extract_layer = extract_layer
         self.required_key = required_key
@@ -324,7 +330,7 @@ class PreComputeDataModule(BaseAudioDataModule):
             self.data_dir = os.path.join(self.data_dir, pretrained_name)
        
         self.train_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='train', extract_layer=extract_layer, required_key=self.required_key)
-        self.val_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='valid', extract_layer=extract_layer, required_key=self.required_key)
+        # self.val_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='valid', extract_layer=extract_layer, required_key=self.required_key)
         self.test_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='test', extract_layer=extract_layer, required_key=self.required_key)
         # Create label mapping
         # all_labels = set()
@@ -361,7 +367,7 @@ class PreComputeDataModule(BaseAudioDataModule):
                 metas[k] = torch.stack(v)
         return torch.stack(reprs), metas
             
-class GSDataset(Dataset):
+class GSKeyDataset(Dataset):
     """
     Sample data for ginatsteps_clip.json
     "0005061-0": {
@@ -400,14 +406,12 @@ class GSDataset(Dataset):
     """
     def __init__(self, root, subset):
         super().__init__()
-        self.root = root if root.split('/')[-1] == 'key' else os.path.join(root, 'key')
+        self.root = root 
         self.subset = subset
         # there are 24 classes in total
         self.classes = """C major, Db major, D major, Eb major, E major, F major, Gb major, G major, Ab major, A major, Bb major, B major, C minor, Db minor, D minor, Eb minor, E minor, F minor, Gb minor, G minor, Ab minor, A minor, Bb minor, B minor""".split(", ")
         self.class2id = {c: i for i, c in enumerate(self.classes)}
         self.id2class = {v: k for k, v in self.class2id.items()}
-        self.min_bpm = 40
-        self.max_bpm = 250
         self.metadata = pd.read_json(os.path.join(self.root, 'giantsteps_clips.json')).T
         # filter the split out
         self.metadata = self.metadata[self.metadata['split'] == self.subset]
@@ -421,18 +425,36 @@ class GSDataset(Dataset):
             frame_offset=int(meta['clip']['clip_offset'] * 44100), 
             num_frames=int(meta['clip']['clip_duration'] * 44100)
         )
-        try:
-            tempo = (meta['extra']['beatport_metadata']['BP BPM'])
-        except:
-            tempo = 0
-        if tempo == '' or tempo == None:
-            tempo = 0
-        else:
-            tempo = float(tempo)
         key = meta['y']
-        info = {'tempo': tempo, 'key': self.class2id[key], 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm)}
+        info = {'key': self.class2id[key]}
         return audio, info
    
+    def __len__(self):
+        return len(self.metadata)
+    
+class GSTempoDataset(Dataset):
+    def __init__(self, root, subset):
+        super().__init__()
+        self.root = root
+        self.subset = subset
+        self.min_bpm = 40
+        self.max_bpm = 250
+        self.metadata = pd.read_json(os.path.join(self.root, 'audio_segments.json')).T
+        # filter the split out
+        self.metadata = self.metadata[self.metadata['subset'] == self.subset]
+        # self.metadata = self.metadata.to_dict(orient='records')
+    
+    def __getitem__(self, index):
+        meta = self.metadata.iloc[index]
+        aids = meta['audio_uid']
+        tempo = int(meta['bpm'])
+        audio, sr = torchaudio.load(
+            os.path.join(self.root, 'audio', f"{aids}.LOFI.mp3"), 
+            frame_offset=int(meta['clip_offset'] * 44100), 
+            num_frames=int(meta['clip_duration'] * 44100)
+        )
+        info = {'tempo': tempo, 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm)}
+        return audio, info
     def __len__(self):
         return len(self.metadata)
     
@@ -614,7 +636,7 @@ if __name__ == '__main__':
         testconf = {
             'data': {
                 'name': 'key_GS',
-                'data_dir': '../scratch/GS/raw',
+                'data_dir': '../scratch/GS/key/raw',
                 'batch_size': 8,
                 'num_workers': 4,
                 'sample_rate': 32000,
@@ -654,5 +676,50 @@ if __name__ == '__main__':
                     break
                 break
             break
+    
+    def testGStempo():
+        testconf = {
+            'data': {
+                'name': 'tempo_GS',
+                'data_dir': '../scratch/GS/tempo/raw',
+                'batch_size': 8,
+                'num_workers': 4,
+                'sample_rate': 32000,
+                'orig_sample_rate': 44100,
+                'preprocessors': ['pad_or_truncate', 'resample'],
+                'sample_rate': 44100,
+                'max_length': 44100 * 28,
+                'required_key': ['tempo', 'scaled_tempo'],
+            },
+            'model': {
+                'gen_model': {
+                    'fps': 100,
+                }
+            }
+        }
+        testconf = OmegaConf.create(testconf)
+        dm = GSDataModuel(
+            config=testconf, 
+            data_dir=testconf.data.data_dir, 
+            batch_size=testconf.data.batch_size, 
+            num_workers=testconf.data.num_workers, 
+            sample_rate=testconf.data.sample_rate, 
+            required_key=testconf.data.required_key
+        )
+        dm.setup()
+        dls = [dm.val_dataloader(), dm.test_dataloader()]
+        for dl in dls:
+            for data in dl:
+                waveforms, meta = data
+                print(f"Waveforms shape: {waveforms.shape}")
+                for k, v in meta.items():
+                    print(f"{k} shape: {v}")
+                    """
+                    Waveforms shape: torch.Size([4, 1, 1102500])
+                    label shape: torch.Size([4, 87])
+                    """
+                    break
+                break
+            break
 
-    testGS()
+    testGStempo()
