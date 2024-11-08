@@ -64,6 +64,7 @@ class MusicGenModule(torch.nn.Module):
 
 
 from vampnet.interface import Interface as VampNetInterface
+from vampnet import mask as pmask 
 
 class VampNetModule(torch.nn.Module):
     def __init__(self, config=None, extract_layer=-1, version='coarse', **kwargs) -> None:
@@ -76,10 +77,12 @@ class VampNetModule(torch.nn.Module):
             device="cuda", 
             wavebeat_ckpt=None,
         )
+
         self.layer = extract_layer
         self.version = version
         print(f"VampNetModule: Extracting from {version} version")
         self.requires_grad_(False)
+        self.r = kwargs.get('r', 0.7)
 
     # TODO: fine2coarse still not implemented
     @torch.no_grad()
@@ -87,15 +90,27 @@ class VampNetModule(torch.nn.Module):
         z = self.model.codec.encode(wav, self.config.data.sample_rate)['codes']
         if self.version == 'coarse':
             z = z[:, : self.model.coarse.n_codebooks, :].clone()
-            # no mask
+
+            # apply mask
+            mask = pmask.random(z, self.r) # shape [bs, n_codebooks, seq_len]
+            mask = pmask.codebook_unmask(mask, self.model.coarse.n_conditioning_codebooks) # shape [bs, n_codebooks, seq_len]
+            z_mask, mask = pmask.apply_mask(z, mask, self.model.coarse.mask_token) 
+
             latent = self.model.coarse.embedding.from_codes(z, self.model.codec)
             _, activations = self.model.coarse.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1280])] * layer_number
-        # extract activation from every/assigned layer
         elif self.version == 'c2f':
             z = z[:, : self.model.c2f.n_codebooks, :].clone()
-            # no mask
-            latent = self.model.c2f.embedding.from_codes(z, self.model.codec)
-            _, activations = self.model.c2f.forward(latent, return_activations=True)
+            # apply mask
+            mask = pmask.random(z, self.r)
+            mask = pmask.codebook_unmask(mask, self.model.coarse.n_conditioning_codebooks)
+            z_mask, mask = pmask.apply_mask(z, mask, self.model.coarse.mask_token)
+
+            latent = self.model.c2f.embedding.from_codes(z_mask, self.model.codec)
+            _, activations = self.model.c2f.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1280])] * layer_number
+        
+        # gather activations that are masked (mask == 1)
+        # TODO: This method is only feasible for discriminative tasks
+        # activations = activations[:][:]
         if self.layer is not None:
             return activations[self.layer]
         else:

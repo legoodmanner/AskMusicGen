@@ -86,7 +86,7 @@ class DiscrimProbeModule(L.LightningModule):
             label = meta[self.config.data.required_key[0]]
         logits = self(inps)
         val_loss = self.criterion(logits, label)
-        self.metric(logits, label)
+        self.metric(logits, label.long())
         self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         
         return val_loss

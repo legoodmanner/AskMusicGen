@@ -81,8 +81,8 @@ class FeatureExtractor(L.LightningModule):
 
 if __name__ == '__main__':
     from data import get_dataModule
-    output_path = "/home/lego/Database/MTG/VampNetC2F"
-    modelConfig = OmegaConf.load('configs/gens/VampC2F.yaml')
+    output_path = "/home/lego/Database/MTG/VampNetCoarse"
+    modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
     dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
 
     # For pace part:
@@ -100,8 +100,8 @@ if __name__ == '__main__':
 
     trainer = L.Trainer(accelerator="gpu", devices=1)
 
-    # print('extracting train...')
-    # trainer.predict(model, dataloaders=dl.train_dataloader())
+    print('extracting train...')
+    trainer.predict(model, dataloaders=dl.train_dataloader())
 
     # model.subset = 'valid'
     # print('extracting valid...')
