@@ -86,10 +86,10 @@ if __name__ == '__main__':
     # dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
 
     # For pace part:
-    output_path = "../scratch/MTG/VampNet"
+    output_path = "../scratch/GS/key/VampNet"
     # modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
     dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    dataConfig.data.required_key = ['key', 'scaled_tempo']
+    # dataConfig.data.required_key = ['key', 'scaled_tempo']
     config = OmegaConf.merge(modelConfig, dataConfig)
     print("batch:" , config.data.batch_size)
     
@@ -101,8 +101,8 @@ if __name__ == '__main__':
 
     trainer = L.Trainer(accelerator="gpu", devices=1)
 
-    print('extracting train...')
-    trainer.predict(model, dataloaders=dl.train_dataloader())
+    # print('extracting train...')
+    # trainer.predict(model, dataloaders=dl.train_dataloader())
 
     # model.subset = 'valid'
     # print('extracting valid...')
