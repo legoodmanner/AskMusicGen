@@ -20,7 +20,7 @@ def get_loss_from_task(config):
     }
 
     loss_config = config.model.peft.get('loss')
-    task = config.experiment.task.strip('_feature')
+    task = config.experiment.task.replace('_feature', '')
     loss = task2loss[task](**(loss_config if loss_config is not None else {}))
     return loss
 
@@ -85,8 +85,8 @@ class DiscrimProbeModule(L.LightningModule):
         else:
             label = meta[self.config.data.required_key[0]]
         logits = self(inps)
-        val_loss = self.criterion(logits, meta['label'])
-        self.metric(logits, meta['label'].long())
+        val_loss = self.criterion(logits, label)
+        self.metric(logits, label)
         self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         
         return val_loss

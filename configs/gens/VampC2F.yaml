@@ -1,0 +1,20 @@
+# gen model config
+data:
+  sample_rate: 44100 # DAC codec sample rate
+  preprocessors: [pad_or_truncate, resample, monolize, normalize, ensure_max_of_audio]
+
+model:
+  gen_model: 
+    name: VampNetC2F
+    version: c2f # coarse, c2f, mixed 
+    extract_layer: 17 # would be overwritten if assigned in base config
+    fps: 50
+    output_dim: 1280
+    
+    
+  
+    
+    
+
+  
+  

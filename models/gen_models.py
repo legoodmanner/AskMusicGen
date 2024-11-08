@@ -10,6 +10,7 @@ def get_gen_model(config):
         'MusicGenSmall': MusicGenModule,
         'MusicGenMedium': MusicGenModule,
         'VampNetCoarse': VampNetModule,
+        'VampNetC2F': VampNetModule,
         'MFCC': MFCCModule,
         'Mel': MelModule,
     }
@@ -76,23 +77,25 @@ class VampNetModule(torch.nn.Module):
             wavebeat_ckpt=None,
         )
         self.layer = extract_layer
+        self.version = version
+        print(f"VampNetModule: Extracting from {version} version")
         self.requires_grad_(False)
 
     # TODO: fine2coarse still not implemented
     @torch.no_grad()
     def forward(self, wav):
-        # print(" vampnet inside forward")
         z = self.model.codec.encode(wav, self.config.data.sample_rate)['codes']
-        # print(" vampnet z shape", z.shape)
-        z = z[:, : self.model.coarse.n_codebooks, :].clone()
-        # print(" vampnet z shape after", z.shape)
-        # no mask
-        # print("transfer code to latent")
-        latent = self.model.coarse.embedding.from_codes(z, self.model.codec)
-        # print(" vampnet latent shape", latent.shape)
-        _, activations = self.model.coarse.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1280])] * layer_number
-        # print(" vampnet activations shape", activations.shape)
+        if self.version == 'coarse':
+            z = z[:, : self.model.coarse.n_codebooks, :].clone()
+            # no mask
+            latent = self.model.coarse.embedding.from_codes(z, self.model.codec)
+            _, activations = self.model.coarse.forward(latent, return_activations=True) # activations: [torch.Size([bs, seq_len, 1280])] * layer_number
         # extract activation from every/assigned layer
+        elif self.version == 'c2f':
+            z = z[:, : self.model.c2f.n_codebooks, :].clone()
+            # no mask
+            latent = self.model.c2f.embedding.from_codes(z, self.model.codec)
+            _, activations = self.model.c2f.forward(latent, return_activations=True)
         if self.layer is not None:
             return activations[self.layer]
         else:

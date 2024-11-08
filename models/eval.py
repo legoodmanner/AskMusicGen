@@ -12,7 +12,7 @@ def get_metric_from_task(config):
         'GS_tempo': BCEBeatFMeasure
     }
     metric_config = config.model.peft.metric
-    task = config.experiment.task.strip('_feature')
+    task = config.experiment.task.replace('_feature', '')
     metric = task2metric[task](**(metric_config if metric_config is not None else {}))
     return metric
    

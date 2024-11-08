@@ -81,17 +81,16 @@ class FeatureExtractor(L.LightningModule):
 
 if __name__ == '__main__':
     from data import get_dataModule
-    # output_path = "/home/lego/Database/MTG/VampNet"
-    modelConfig = OmegaConf.load('configs/gens/VampNet.yaml')
-    # dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    output_path = "/home/lego/Database/MTG/VampNetC2F"
+    modelConfig = OmegaConf.load('configs/gens/VampC2F.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
 
     # For pace part:
-    output_path = "../scratch/MTG/VampNet"
+    # output_path = "../scratch/MTG/VampNet"
     # modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    dataConfig.data.required_key = ['key', 'scaled_tempo']
+    # dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
+    # dataConfig.data.required_key = ['key', 'scaled_tempo']
     config = OmegaConf.merge(modelConfig, dataConfig)
-    print("batch:" , config.data.batch_size)
     
     os.makedirs(output_path, exist_ok=True)
     print(f"Initializing feature extraction model")
@@ -101,8 +100,8 @@ if __name__ == '__main__':
 
     trainer = L.Trainer(accelerator="gpu", devices=1)
 
-    print('extracting train...')
-    trainer.predict(model, dataloaders=dl.train_dataloader())
+    # print('extracting train...')
+    # trainer.predict(model, dataloaders=dl.train_dataloader())
 
     # model.subset = 'valid'
     # print('extracting valid...')

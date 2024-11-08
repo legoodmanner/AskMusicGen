@@ -265,7 +265,7 @@ class FeatureHDF5Dataset(Dataset):
     def __init__(self, root, subset, extract_layer, required_key, transform=None):
         
         self.hdf5_path = os.path.join(root, subset + '.h5')
-        assert os.path.isfile(self.hdf5_path)
+        assert os.path.isfile(self.hdf5_path), f"Cannot find {self.hdf5_path}"
         self.transform = transform
         self.extract_layer = extract_layer
         self.required_key = required_key
@@ -324,7 +324,7 @@ class PreComputeDataModule(BaseAudioDataModule):
             self.data_dir = os.path.join(self.data_dir, pretrained_name)
        
         self.train_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='train', extract_layer=extract_layer, required_key=self.required_key)
-        self.val_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='valid', extract_layer=extract_layer, required_key=self.required_key)
+        # self.val_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='valid', extract_layer=extract_layer, required_key=self.required_key)
         self.test_dataset = FeatureHDF5Dataset(root=self.data_dir, subset='test', extract_layer=extract_layer, required_key=self.required_key)
         # Create label mapping
         # all_labels = set()
