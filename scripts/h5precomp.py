@@ -107,8 +107,8 @@ if __name__ == '__main__':
     # print('extracting valid...')
     # trainer.predict(model, dataloaders=dl.val_dataloader())
 
-    model.subset = 'test'
-    print('extracting test...')
-    trainer.predict(model, dataloaders=dl.test_dataloader())
+    # model.subset = 'test'
+    # print('extracting test...')
+    # trainer.predict(model, dataloaders=dl.test_dataloader())
 
     print(f"Features extracted and saved to {output_path}")
