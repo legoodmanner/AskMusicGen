@@ -1,8 +1,8 @@
 # Project base config
 experiment:
   seed: 2024
-  task: GS_key
-  gen_model: VampC
+  task: GS_key_feature
+  gen_model: VampC2F
   logger:
     # output_dir: '../scratch/outputs/'
     output_dir: 'cache/outputs/'

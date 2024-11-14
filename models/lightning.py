@@ -47,14 +47,15 @@ class DiscrimProbeModule(L.LightningModule):
             output_size= config.model.peft.repr_head.n_classes,
             dropout=config.model.peft.repr_head.dropout
         )
-        self.save_hyperparameters(ignore='gen_model')  
+        self.save_hyperparameters(ignore='gen_model')
+        
     
     def forward(self, inps):
         if not self.config.model.peft.get('use_feature'): # inps is wave
             with torch.no_grad():
                 repr = self.repr_extractor(inps) # bsz, seq_len, dim, layer selection already happened
-            # Aggregate
-            repr = torch.mean(repr, dim=-2) # TODO would try out different aggregation methods.
+            # Aggregate:
+                # After this commit, the aggregation is done in the representation extractor
         else:  # inpt is precomputed feature (already aggregated)
             repr = inps
         logits = self.probe_mlp(repr)  # bsz, n_class
