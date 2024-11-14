@@ -38,13 +38,15 @@ class FeatureExtractor(L.LightningModule):
 
     def forward(self, wav):
         # print("Extracting features...")
+        # breakpoint()
         repr = self.repr_extractor(wav)
         # print("Finished extracting features")
         if isinstance(repr, tuple):
             repr = torch.stack(repr) #[layer, bs, seq_len, 1024]
-        repr = repr.permute(1,0,2,3)  #[bs, layer, seq_len, 1024]
-        if self.mean_agg:
-            repr = repr.mean(-2) #[bs, layer, 1024]
+        # if self.mean_agg:
+        #     repr = repr.permute(1,0,2,3)  #[bs, layer, seq_len, 1024]
+        #     repr = repr.mean(-2) #[bs, layer, 1024]
+        repr = repr.permute(1,0,2)
         return repr
     
     def predict_step(self, batch, batch_idx):
@@ -54,15 +56,15 @@ class FeatureExtractor(L.LightningModule):
             # print("forwarding...")
             repr = self(wav)  #[bs, layer, (seq_len), 1024]
             # print("finished")
-            if not self.mean_agg:
-                bs, layer, seq_len, dim = repr.shape
-                if 'beat_f' in meta:
-                    mini_crop = min(seq_len, meta['beat_f'].shape[-1])
-                    meta['beat_f'] = meta['beat_f'][..., :mini_crop]
-                else: mini_crop=seq_len
-                repr = repr[...,:mini_crop,:]
-            else:
-                bs, layer, dim = repr.shape
+            # if not self.mean_agg:
+            #     bs, layer, seq_len, dim = repr.shape
+            #     if 'beat_f' in meta:
+            #         mini_crop = min(seq_len, meta['beat_f'].shape[-1])
+            #         meta['beat_f'] = meta['beat_f'][..., :mini_crop]
+            #     else: mini_crop=seq_len
+            #     repr = repr[...,:mini_crop,:]
+            # else:
+            bs, layer, dim = repr.shape
             
             for idx, r in enumerate(repr):
                 # Create a group for each sample
@@ -81,34 +83,40 @@ class FeatureExtractor(L.LightningModule):
 
 if __name__ == '__main__':
     from data import get_dataModule
-    output_path = "/home/lego/Database/MTG/VampNetCoarse"
-    modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--subset', type=str, default=None)
+    args = parser.parse_args()
+    """"For local 4080"""
+    # output_path = "/home/lego/Database/MTG/VampNetCoarse"
+    # modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
+    # dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
 
-    # For pace part:
-    # output_path = "../scratch/MTG/VampNet"
-    # modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
-    # dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    # dataConfig.data.required_key = ['key', 'scaled_tempo']
+    """"For PACE"""
+    output_path = "../scratch/GS/key/VampNetCoarse"
+    modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
+    dataConfig.data.required_key = ['key']
     config = OmegaConf.merge(modelConfig, dataConfig)
     
     os.makedirs(output_path, exist_ok=True)
     print(f"Initializing feature extraction model")
-    model = FeatureExtractor(config, output_path, subset='train', mean_agg=True)
+    model = FeatureExtractor(config, output_path, subset='train', mean_agg=False)
     print("DataModule loading...")
     dl = get_dataModule(config)
 
     trainer = L.Trainer(accelerator="gpu", devices=1)
 
-    print('extracting train...')
-    trainer.predict(model, dataloaders=dl.train_dataloader())
+    if args.subset == 'train' or args.subset is None:
+        print('extracting train...')
+        trainer.predict(model, dataloaders=dl.train_dataloader())
 
     # model.subset = 'valid'
     # print('extracting valid...')
     # trainer.predict(model, dataloaders=dl.val_dataloader())
-
-    # model.subset = 'test'
-    # print('extracting test...')
-    # trainer.predict(model, dataloaders=dl.test_dataloader())
+    if args.subset == 'test' or args.subset is None:
+        model.subset = 'test'
+        print('extracting test...')
+        trainer.predict(model, dataloaders=dl.test_dataloader())
 
     print(f"Features extracted and saved to {output_path}")
