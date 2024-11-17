@@ -448,12 +448,15 @@ class GSTempoDataset(Dataset):
         meta = self.metadata.iloc[index]
         aids = meta['audio_uid']
         tempo = int(meta['bpm'])
+        # turn tempo into one-hot vecotor
+        tempo1hot = torch.zeros((300,)) 
+        tempo1hot[tempo] = 1
         audio, sr = torchaudio.load(
             os.path.join(self.root, 'audio', f"{aids}.LOFI.mp3"), 
             frame_offset=int(meta['clip_offset'] * 44100), 
             num_frames=int(meta['clip_duration'] * 44100)
         )
-        info = {'tempo': tempo, 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm)}
+        info = {'tempo': tempo, 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm), 'tempo1hot': tempo1hot}
         return audio, info
     def __len__(self):
         return len(self.metadata)
@@ -689,7 +692,7 @@ if __name__ == '__main__':
                 'preprocessors': ['pad_or_truncate', 'resample'],
                 'sample_rate': 44100,
                 'max_length': 44100 * 28,
-                'required_key': ['tempo', 'scaled_tempo'],
+                'required_key': ['tempo1hot', 'tempo', 'scaled_tempo' ],
             },
             'model': {
                 'gen_model': {
@@ -713,7 +716,7 @@ if __name__ == '__main__':
                 waveforms, meta = data
                 print(f"Waveforms shape: {waveforms.shape}")
                 for k, v in meta.items():
-                    print(f"{k} shape: {v}")
+                    print(f"{k} shape: {v.shape}")
                     """
                     Waveforms shape: torch.Size([4, 1, 1102500])
                     label shape: torch.Size([4, 87])

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from torchmetrics import Metric
 from models.layers import dbnProcessor
 from mir_eval.beat import f_measure as beat_f1
@@ -9,7 +10,7 @@ def get_metric_from_task(config):
         "GS_key": KeyAccRefined,
         "GTZAN_genre": torchmetrics.Accuracy,
         "MTG_genre": torchmetrics.AUROC,
-        'GS_tempo': BCEBeatFMeasure
+        'GS_tempo': TempoAcc,
     }
     metric_config = config.model.peft.metric
     task = config.experiment.task.replace('_feature', '')
@@ -198,3 +199,44 @@ class KeyAccRefined(Metric):
         scores = torch.tensor(self.scores).mean()
         return scores
 
+from madmom.evaluation.tempo import tempo_evaluation
+
+
+class TempoAcc(Metric):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.add_state("pscore", default=[], dist_reduce_fx=None)
+        self.add_state("acc1", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+        
+    def update(self, preds: torch.Tensor, labels: torch.Tensor):
+        # preds shape: [bs, 300]
+        # labels shape: [bs]
+
+        detections = torch.max(preds,dim=-1).indices
+        detections =  np.array([[detection.cpu().numpy()] for detection in detections])
+        annotations = np.array([[label.cpu().numpy()] for label in labels])
+        for detection, annotation in zip(detections, annotations):
+            acc1 = tempo_evaluation(detections=detection, annotations=annotation, tolerance=0.04)[1]
+            self.acc1 += int(acc1)
+            self.total += 1
+
+    def compute(self):
+        if self.total == 0:
+            return torch.tensor(0.0)
+        res = self.acc1 / self.total
+        return res
+    
+
+if __name__ == '__main__':
+    # testing
+    preds = torch.zeros((2, 300))
+    preds[0, 140] = 0.5
+    preds[0, 70] = 0.5
+    preds[1, 60] = 0.5
+    preds[1, 120] = 0.5
+    labels = torch.tensor([140, 60])
+    acc = TempoAcc()
+    acc.update(preds, labels)
+    res = acc.compute()
+    print(res)
