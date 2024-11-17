@@ -3,7 +3,7 @@ data:
   name: genre_classification_MTG
   # data_dir: '/home/lego/Database/Data'
   data_dir: '../Database/MTG/raw'
-  batch_size: 6
+  batch_size: 4
   num_workers: 2
   max_length: 1102500  # 25s approx (25 * 44100)
   orig_sample_rate: 44100
