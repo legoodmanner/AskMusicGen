@@ -88,17 +88,16 @@ if __name__ == '__main__':
     parser.add_argument('--subset', type=str, default=None)
     args = parser.parse_args()
     """"For local 4080"""
-    # output_path = "/home/lego/Database/MTG/VampNetCoarse"
-    # modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
-    # dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    output_path = "/home/lego/Database/MTG/VampNetCoarse"
 
     """"For PACE"""
-    output_path = "../scratch/GS/key/VampNetCoarse"
+    # output_path = "../scratch/GS/key/VampNetCoarse"
+
     modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    dataConfig.data.required_key = ['key']
+    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    # dataConfig.data.required_key = ['key']
     config = OmegaConf.merge(modelConfig, dataConfig)
-    
+
     os.makedirs(output_path, exist_ok=True)
     print(f"Initializing feature extraction model")
     model = FeatureExtractor(config, output_path, subset='train', mean_agg=False)
