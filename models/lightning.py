@@ -16,7 +16,7 @@ def get_loss_from_task(config):
         "GS_key": nn.CrossEntropyLoss,
         "GTZAN_genre": nn.CrossEntropyLoss,
         "MTG_genre": nn.BCEWithLogitsLoss,
-        "GS_tempo": MaskedMSEWithLogitsLoss,
+        "GS_tempo": nn.CrossEntropyLoss,
     }
 
     loss_config = config.model.peft.get('loss')
@@ -101,6 +101,9 @@ class DiscrimProbeModule(L.LightningModule):
         elif self.metric.__class__.__name__ == 'KeyAccRefined':
             key_acc = self.metric.compute()
             self.log("val_key_acc_refined", key_acc, prog_bar=True)
+        elif self.metric.__class__.__name__ == 'TempoAcc':
+            tempo_acc = self.metric.compute()
+            self.log("val_tempo_acc", tempo_acc, prog_bar=True)
 
 
 
