@@ -451,11 +451,16 @@ class GSTempoDataset(Dataset):
         # turn tempo into one-hot vecotor
         tempo1hot = torch.zeros((300,)) 
         tempo1hot[tempo] = 1
-        audio, sr = torchaudio.load(
-            os.path.join(self.root, 'audio', f"{aids}.LOFI.mp3"), 
-            frame_offset=int(meta['clip_offset'] * 44100), 
-            num_frames=int(meta['clip_duration'] * 44100)
-        )
+        try:
+            audio, sr = torchaudio.load(
+                os.path.join(self.root, 'audio', f"{aids}.LOFI.mp3"), 
+                frame_offset=int(meta['clip_offset'] * 44100), 
+                num_frames=int(meta['clip_duration'] * 44100)
+            )
+            assert sr == 44100
+        except:
+            print(f"Error loading {aids}")
+            print(meta['clip_offset'], meta['clip_duration'])
         info = {'tempo': tempo, 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm), 'tempo1hot': tempo1hot}
         return audio, info
     def __len__(self):
