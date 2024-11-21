@@ -231,8 +231,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     base_config = OmegaConf.load(args.c)
     # update layer information 
-    if args.layer:
+    if args.layer is not None:
         OmegaConf.update(base_config, 'model.gen_model.extract_layer', args.layer)
+        print(f'Layer updated to {args.layer}')
 
     exp = Experiment(base_config)
     if args.dry_run:
@@ -240,5 +241,8 @@ if __name__ == '__main__':
     else:
         exp.train()
 
+
+
+       
 
        
