@@ -100,7 +100,11 @@ class Experiment:
             if exp_config.logger.type == "wandb":
                 # Wandblogger
                 from lightning.pytorch.loggers import WandbLogger
-                wandb_logger = WandbLogger(project=exp_config.logger.project, save_dir= exp_config.logger.output_dir, name=exp_config.logger.name)
+                wandb_logger = WandbLogger(
+                    project=exp_config.logger.project, 
+                    save_dir= exp_config.logger.output_dir, 
+                    name=exp_config.logger.name or f'{exp_config.gen_model} {exp_config.task} {self.config.model.gen_model.extract_layer}'
+                )
                 return wandb_logger
             else:
                 raise NotImplementedError("Logger type not supported")
@@ -231,7 +235,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     base_config = OmegaConf.load(args.c)
     # update layer information 
-    if args.layer:
+    if args.layer is not None:
         OmegaConf.update(base_config, 'model.gen_model.extract_layer', args.layer)
 
     exp = Experiment(base_config)
