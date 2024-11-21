@@ -1,9 +1,9 @@
 # task config
 data:
-  name: tempo_GS
+  name: tempo_GS_feature
   # data_dir: '/home/lego/Database/Data'
-  data_dir: '../Database/GS/tempo/raw'
-  batch_size: 3
+  data_dir: '../Database/GS/tempo/'
+  batch_size: 128
   num_workers: 0
   max_length: 1102500  # 30s approx (30 * 44100)
   orig_sample_rate: 44100
@@ -17,9 +17,10 @@ model:
       n_classes: 300
       hidden_sizes: 512
       dropout: 0.25
+    use_feature: True
 
 training:
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 2
 
 # batch_size * accumulate_grad_batches = 64
 
