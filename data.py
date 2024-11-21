@@ -460,6 +460,7 @@ class GSTempoDataset(Dataset):
             assert sr == 44100
         except:
             print(f"Error loading {aids}")
+            print(meta['clip_offset'], meta['clip_duration'])
         info = {'tempo': tempo, 'scaled_tempo': (tempo - self.min_bpm) / (self.max_bpm - self.min_bpm), 'tempo1hot': tempo1hot}
         return audio, info
     def __len__(self):
