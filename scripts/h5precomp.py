@@ -91,10 +91,10 @@ if __name__ == '__main__':
     output_path = "/home/lego/Database/MTG/VampNetCoarse"
 
     """"For PACE"""
-    output_path = "cache/GS/key/VampNetCoarse"
-    modelConfig = OmegaConf.load('configs/gens/VampC.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    dataConfig.data.required_key = ['key']
+    output_path = "cache/GS/key/MusicGenSmall"
+    modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/GS_tempo.yaml')
+    dataConfig.data.required_key = ['tempo']
     config = OmegaConf.merge(modelConfig, dataConfig)
 
     os.makedirs(output_path, exist_ok=True)

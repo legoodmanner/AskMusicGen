@@ -1,8 +1,8 @@
 # task config
 data:
   name: tempo_GS
-  # data_dir: '/home/lego/Database/Data'
-  data_dir: '../scratch/GS/tempo/raw'
+  data_dir: '../Database/GS/tempo/raw'
+  # data_dir: '../scratch/GS/tempo/raw'
   batch_size: 4
   num_workers: 0
   max_length: 1102500  # 30s approx (30 * 44100)
