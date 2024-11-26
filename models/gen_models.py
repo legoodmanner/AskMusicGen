@@ -64,7 +64,7 @@ class MusicGenModule(torch.nn.Module):
             return decoder_outputs.decoder_hidden_states[self.layer]
         else:
             if self.aggregation:
-                return decoder_outputs.decoder_hidden_states.mean(-2)
+                return torch.stack([decoder_outputs.decoder_hidden_states[i].mean(-2) for i in range(len(decoder_outputs.decoder_hidden_states))]) # torch.Size([layer_number, bs, 1024])
             return decoder_outputs.decoder_hidden_states # tuple( torch.Size([bs, seq_len, 1024]) * layer_number )_states # tuple( torch.Size([bs, seq_len, 1024]) * layer_number )
 
 

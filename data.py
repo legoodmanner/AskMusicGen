@@ -73,9 +73,9 @@ class BaseAudioDataModule(L.LightningDataModule):
             raise TypeError(f'incompatible type for preprocessors of {preprocessors.__class__}')
         return preprocessor_list
     
-    #################################
-    # Lots of preprocessing methods #
-    #################################
+    ##################################
+    # Lots of preprocessing methods  #
+    ##################################
     def pad_or_truncate(self, audio):
         """
         audio: seq_len
