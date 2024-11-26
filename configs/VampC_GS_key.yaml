@@ -8,7 +8,7 @@ experiment:
     output_dir: 'cache/outputs/'
 
     type: wandb
-    project: AskMuiscGen
+    project: Giantsteps_key
     name: null
 
 training:
