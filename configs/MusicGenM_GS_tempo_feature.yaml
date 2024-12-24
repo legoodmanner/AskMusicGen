@@ -1,13 +1,14 @@
 # Project base config
 experiment:
   seed: 2024
-  task: GS_key_feature
-  gen_model: MusicGenSmall
+  task: GS_tempo_feature
+  gen_model: MusicGenMedium
   logger:
-    output_dir: '../scratch/outputs/'
-    # output_dir: 'cache/outputs/'
+    # output_dir: '../scratch/outputs/'
+    output_dir: 'cache/outputs/'
+
     type: wandb
-    project: Giantsteps_key
+    project: Giantsteps_tempo
     name: null
 
 training:

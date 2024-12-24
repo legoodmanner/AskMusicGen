@@ -4,10 +4,10 @@ data:
 
 model:
   gen_model: 
-    name: MusicGenMedium
-    version: medium
+    name: MusicGenLarge
+    version: large
     fps: 50
-    output_dim: 1536
+    output_dim: 2048
     
   
     
