@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for i in {0..19}
+for i in {15..35..5}
 do
-    python3 experiment.py configs/musicgen_GS_tempo_feature.yaml  --layer $i
+    python3 experiment.py configs/musgenMed_MTG_genre_feature.yaml  --layer $i
 done

@@ -9,6 +9,7 @@ def get_gen_model(config):
     model_dict = {
         'MusicGenSmall': MusicGenModule,
         'MusicGenMedium': MusicGenModule,
+        'MusicGenLarge': MusicGenModule,
         'VampNetCoarse': VampNetModule,
         'VampNetC2F': VampNetModule,
         'MFCC': MFCCModule,
