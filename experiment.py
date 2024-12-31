@@ -168,8 +168,6 @@ class Experiment:
     
 
     def train(self):
-        
-        early_stop_callback = self.setup_early_stopping()
 
         logger = self.setup_logger()
 
