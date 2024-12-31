@@ -24,6 +24,7 @@ def get_loss_from_task(config):
     loss = task2loss[task](**(loss_config if loss_config is not None else {}))
     return loss
 
+
 class DiscrimProbeModule(L.LightningModule):
     def __init__(self, gen_model, config):
         super().__init__()
@@ -38,16 +39,18 @@ class DiscrimProbeModule(L.LightningModule):
             print('using pre-compute feature to train') 
         # if self.config.model.peft.get('post_processor'):
             
-        # Set pre-trained model as extractor (freeze)
-        self.repr_extractor = gen_model
+
+        if not config.model.peft.get('use_feature'): # inps is wave
+            self.repr_extractor = gen_model
         # Set trainable MLP
         self.probe_mlp = MLP(
             input_size= config.model.gen_model.output_dim,
             hidden_sizes= config.model.peft.repr_head.hidden_sizes,
             output_size= config.model.peft.repr_head.n_classes,
-            dropout=config.model.peft.repr_head.dropout
+            dropout=config.model.peft.repr_head.dropout,
         )
-        self.save_hyperparameters(ignore='gen_model')
+        self.save_hyperparameters(config, ignore='gen_model')
+        self.log('layer', self.config.model.gen_model.extract_layer)
         
     
     def forward(self, inps):
@@ -67,6 +70,9 @@ class DiscrimProbeModule(L.LightningModule):
             label = meta['label']
         else:
             label = meta[self.config.data.required_key[0]]
+        if 'GS_tempo' in self.config.experiment.task:
+            # quantize to multiple of 5
+            label = (label/5).round().long()
         logits = self(inps)
         train_loss = self.criterion(logits, label)
         self.log("train_loss", train_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
@@ -86,7 +92,18 @@ class DiscrimProbeModule(L.LightningModule):
         else:
             label = meta[self.config.data.required_key[0]]
         logits = self(inps)
-        val_loss = self.criterion(logits, label)
+        if 'GS_tempo' in self.config.experiment.task:
+            # quantize to multiple of 5
+            tmp = torch.zeros(logits.shape[0], logits.shape[1]*5, device=logits.device)
+            tmp[:, ::5] = logits
+            logits = tmp
+            val_loss = self.criterion(logits, label)
+            # 5 times len
+            
+
+        else:
+            val_loss = self.criterion(logits, label)
+
         self.metric(logits, label.long())
         self.log("val_loss", val_loss, on_step = False, on_epoch = True, batch_size = self.config.data.batch_size, prog_bar = True)
         

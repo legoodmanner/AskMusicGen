@@ -103,7 +103,7 @@ class Experiment:
                 wandb_logger = WandbLogger(
                     project=exp_config.logger.project, 
                     save_dir= exp_config.logger.output_dir, 
-                    name=exp_config.logger.name or f'{exp_config.gen_model} {exp_config.task} {self.config.model.gen_model.extract_layer}'
+                    name=exp_config.logger.name or f'{exp_config.gen_model} {exp_config.task} {self.config.model.gen_model.extract_layer}',
                 )
                 return wandb_logger
             else:
@@ -168,8 +168,6 @@ class Experiment:
     
 
     def train(self):
-        
-        early_stop_callback = self.setup_early_stopping()
 
         logger = self.setup_logger()
 

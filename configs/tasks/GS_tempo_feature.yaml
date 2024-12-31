@@ -1,10 +1,11 @@
 # task config
 data:
   name: tempo_GS_feature
+  data_dir: '../scratch/GS/tempo/'
   # data_dir: '/home/lego/Database/Data'
-  data_dir: '../Database/GS/tempo/'
-  batch_size: 128
-  num_workers: 0
+  # data_dir: '../Database/GS/tempo/'
+  batch_size: 256
+  num_workers: 16
   max_length: 1102500  # 30s approx (30 * 44100)
   orig_sample_rate: 44100
   required_key: ['tempo']
@@ -14,13 +15,13 @@ model:
     name: DiscrimProbeModule
     metric: null
     repr_head:
-      n_classes: 300
+      n_classes: 60
       hidden_sizes: 512
       dropout: 0.25
     use_feature: True
 
 training:
-  accumulate_grad_batches: 2
+  accumulate_grad_batches: 1
 
 # batch_size * accumulate_grad_batches = 64
 

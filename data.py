@@ -11,6 +11,7 @@ import pandas as pd
 import h5py
 import omegaconf
 import json
+from transformers import AutoProcessor
 
 
 def time_to_frame(seq_in_sec, fps, n_frame):
@@ -60,7 +61,12 @@ class BaseAudioDataModule(L.LightningDataModule):
             'monolize': self.monolize,
             'normalize': self.normalize,
             'ensure_max_of_audio': self.ensure_max_of_audio,
+            'musicgen_proc': self.musicgen_proc,
         }
+        ## conditional intitialization
+        if 'musicgen_proc' in preprocessors:
+            self.musicgen_proc_module = AutoProcessor.from_pretrained(f"facebook/musicgen-{self.config.model.gen_model.version}")
+
         preprocessor_list = []
         if not preprocessors:
             return preprocessor_list
@@ -76,6 +82,16 @@ class BaseAudioDataModule(L.LightningDataModule):
     ##################################
     # Lots of preprocessing methods  #
     ##################################
+    def musicgen_proc(self, audio):
+        inputs = self.musicgen_proc_module(
+            audio=audio.squeeze(),
+            text='',
+            sampling_rate=self.config.data.sample_rate,
+            padding=True,
+            return_tensors="pt",
+        )
+        return inputs.decoder_hidden_states
+    
     def pad_or_truncate(self, audio):
         """
         audio: seq_len
@@ -268,16 +284,38 @@ class FeatureDataset(Dataset):
         return len(self.fl)
     
 class FeatureHDF5Dataset(Dataset):
-    def __init__(self, root, subset, extract_layer, required_key, transform=None):
+    def __init__(self, root, subset, extract_layer, required_key, normalize=True):
         
         self.hdf5_path = os.path.join(root, subset + '.h5')
+        self.normalize = normalize
         assert os.path.isfile(self.hdf5_path), f"Cannot find {self.hdf5_path}"
-        self.transform = transform
         self.extract_layer = extract_layer
         self.required_key = required_key
         with h5py.File(self.hdf5_path, 'r') as f:
             # filename as key (?)
             self.indexs = list(f.keys())
+        
+        # compute the mean and std of the repr data
+        if normalize:
+            self.mean, self.std = self.compute_mean_std()
+        
+    
+    def compute_mean_std(self):
+        print('computing mean and std... ')
+        repr_data = []
+        with h5py.File(self.hdf5_path, 'r') as f:
+            for idx in self.indexs:
+                repr_data.append([f[idx]['repr'][self.extract_layer]])
+        repr_data = np.concatenate(repr_data, axis=0)
+        assert len(repr_data.shape) == 2, f"repr_data shape is {repr_data.shape}"
+        mean = repr_data.mean(axis=0)
+        std = repr_data.std(axis=0)
+        print('mean:', mean, 'std:', std)
+        return mean, std
+
+    def z_norm(self, repr_data, mean, std):
+        repr_data = (repr_data - mean) / std
+        return repr_data
 
     def __len__(self):
         return len(self.indexs)
@@ -298,9 +336,8 @@ class FeatureHDF5Dataset(Dataset):
                     meta = m[:]
 
                 meta_data[key] = torch.tensor(meta)                    
-
-        if self.transform:
-            repr_data = self.transform(repr_data)
+            if self.normalize:
+                repr_data = self.z_norm(repr_data, self.mean, self.std)
 
         return repr_data, meta_data
     

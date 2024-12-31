@@ -4,9 +4,8 @@ experiment:
   task: GS_key_feature
   gen_model: MusicGenSmall
   logger:
-    # output_dir: '../scratch/outputs/'
-    output_dir: 'cache/outputs/'
-
+    output_dir: '../scratch/outputs/'
+    # output_dir: 'cache/outputs/'
     type: wandb
     project: Giantsteps_key
     name: null
@@ -20,7 +19,7 @@ training:
 
 model:
   gen_model:
-      extract_layer: 15
+      extract_layer: 0
   
 
   

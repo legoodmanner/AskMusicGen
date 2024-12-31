@@ -7,6 +7,7 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         layers = []
         current_size = input_size
+        # layers.append(nn.BatchNorm1d(current_size, affine=True))
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes]
         for hidden_size in hidden_sizes:

@@ -25,6 +25,7 @@ class MusicGenModule(torch.nn.Module):
         # self.processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
         self.config = config
         self.model = MusicgenForConditionalGeneration.from_pretrained(f"facebook/musicgen-{version}")
+        self.processor = AutoProcessor.from_pretrained(f"facebook/musicgen-{version}")
         self.aggregation = config.model.gen_model.get('aggregation', True)
         self.layer = extract_layer
         self.model.generation_config.max_length = 3080
@@ -36,29 +37,46 @@ class MusicGenModule(torch.nn.Module):
         wav: shape [batch, channel, seq_len] or [ channel, seq_len]
 
         """
-        if len(wav.shape) ==1:
-            wav = wav[None, None, :]
+        # if len(wav.shape) ==1:
+        #     wav = wav[None, None, :]
 
-        if len(wav.shape) ==2:
-            assert wav.shape[0] == 1
-            wav = wav[None, :]
+        # if len(wav.shape) ==2:
+        #     assert wav.shape[0] == 1
+        #     wav = wav[None, :]
 
-        output = self.model.audio_encoder(
-            input_values=wav,
-            padding_mask=torch.ones_like(wav).to(device=wav.device),
+        # output = self.model.audio_encoder(
+        #     input_values=wav,
+        #     padding_mask=torch.ones_like(wav).to(device=wav.device),
+        # )
+        # audio_codes = output['audio_codes']
+        # frames, bsz, codebooks, seq_len = audio_codes.shape 
+        # assert frames == 1
+
+        # inputs = self.model.get_unconditional_inputs(bsz)
+        # inputs['decoder_input_ids'] = audio_codes[0, ...].reshape(bsz * codebooks, seq_len)
+        # # inputs['decoder_input_ids'] = self.model.prepare_inputs_for_generation(**inputs)['decoder_input_ids']
+        # decoder_outputs = self.model(
+        #             **inputs,
+        #             output_hidden_states=True,
+        #             return_dict=True,
+        # )
+        wav = wav.detach().cpu()
+        wav = [w.squeeze().numpy() for w in wav]
+        inputs = self.processor(
+            audio=wav,
+            text=[""]*len(wav),
+            sampling_rate=self.config.data.sample_rate,
+            padding=True,
+            return_tensors="pt",
         )
-        audio_codes = output['audio_codes']
-        frames, bsz, codebooks, seq_len = audio_codes.shape 
-        assert frames == 1
-
-        inputs = self.model.get_unconditional_inputs(bsz)
-        inputs['decoder_input_ids'] = audio_codes[0, ...].reshape(bsz * codebooks, seq_len)
-        # inputs['decoder_input_ids'] = self.model.prepare_inputs_for_generation(**inputs)['decoder_input_ids']
-        decoder_outputs = self.model(
-                    **inputs,
-                    output_hidden_states=True,
-                    return_dict=True,
-        )
+        for k in inputs:
+            try:
+                inputs[k] = inputs[k].cuda()
+            except:
+                continue
+        # extract representations from decoder LM
+        decoder_outputs = self.model(**inputs, output_hidden_states=True)
+        
         if self.layer is not None:
             if self.aggregation:
                 return decoder_outputs.decoder_hidden_states[self.layer].mean(-2)  # torch.Size([bs, seq_len, 1024]) -> torch.Size([bs, 1024])

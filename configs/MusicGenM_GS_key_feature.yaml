@@ -1,17 +1,17 @@
 # Project base config
 experiment:
   seed: 2024
-  task: GS_tempo_feature
-  gen_model: MusicGenSmall
+  task: GS_key_feature
+  gen_model: MusicGenMedium
   logger:
-    # output_dir: '../scratch/outputs/'
-    output_dir: 'cache/outputs/'
+    output_dir: '../scratch/outputs/'
+    # output_dir: 'cache/outputs/'
     type: wandb
-    project: Giantsteps_tempo
+    project: Giantsteps_key
     name: null
 
 training:
-  learning_rate: 0.001
+  learning_rate: 0.00001
   weight_decay: 0.01
   epochs: 1500 # max epoch
   log_step: 5
