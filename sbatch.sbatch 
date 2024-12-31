@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#SBATCH --job-name=Task
+#SBATCH --account=gts-alerch3
+#SBATCH --nodes=1 --ntasks-per-node=4 --gres=gpu:V100:1 -C V100-32GB
+#SBATCH --time=4:00:00
+#SBATCH --qos=embers
+#SBATCH --output=./logs/task.out
+#SBATCH --mail-type=NONE
+
+conda activate 7100
+cd 
+cd 7100
+
+# for i in {0..35}  #include last number
+# do
+#     srun python3 experiment.py configs/MusicGenM_GS_key_feature.yaml --layer $i
+# done
+
+srun bash multi.sh
