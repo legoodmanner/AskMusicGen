@@ -6,7 +6,6 @@ experiment:
   logger:
     # output_dir: '../scratch/outputs/'
     output_dir: 'outputs/'
-
     type: wandb
     project: MTG_genre
     name: null
