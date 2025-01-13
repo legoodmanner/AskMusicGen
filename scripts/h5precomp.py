@@ -88,13 +88,13 @@ if __name__ == '__main__':
     parser.add_argument('--subset', type=str, default=None)
     args = parser.parse_args()
     """"For local 4080"""
-    # output_path = "/home/lego/Database/GS/tempo/MusicGenSmall"
+    output_path = "/home/lego/Database/MTG/MusicGenLarge"
 
     """"For PACE"""
-    output_path = "../scratch/GS/key/MusicGenLarge"
+    # output_path = "../scratch/GS/key/MusicGenLarge"
     modelConfig = OmegaConf.load('configs/gens/MusicGenLarge.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
-    dataConfig.data.required_key = ['key']
+    dataConfig = OmegaConf.load('configs/tasks/MTG_genre.yaml')
+    dataConfig.data.required_key = ['label']
     config = OmegaConf.merge(modelConfig, dataConfig)
 
     os.makedirs(output_path, exist_ok=True)
