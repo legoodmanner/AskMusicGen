@@ -1,8 +1,8 @@
 # task config
 data:
   name: key_GS_feature
-  # data_dir: '/home/lego/Database/Data'
-  data_dir: '../scratch/GS/key/'
+  data_dir: '/home/lego/Database/GS/key/'
+  # data_dir: '../scratch/GS/key/'
   batch_size: 256
   num_workers: 8
   max_length: 1323000  # 25s approx (30 * 44100)
