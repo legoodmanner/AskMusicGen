@@ -3,13 +3,7 @@ experiment:
   seed: 2024
   task: MTG_genre_feature
   gen_model: VampC
-  logger:
-    # output_dir: '../scratch/outputs/'
-    output_dir: 'outputs/'
 
-    type: wandb
-    project: MTG_genre
-    name: null
 
 training:
   learning_rate: 0.001

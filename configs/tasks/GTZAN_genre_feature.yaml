@@ -1,3 +1,11 @@
+experiment:
+  logger:
+    # output_dir: '../scratch/outputs/'
+    output_dir: 'cache/outputs/'
+    type: wandb
+    project: GTZAN_genre_feature
+    name: null
+
 data:
   name: genre_classification_on_feature
   data_dir: 'cache/GTZAN' # would be edited based on precompute model in PrecomputeModule when setting up

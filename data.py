@@ -284,7 +284,7 @@ class FeatureDataset(Dataset):
         return len(self.fl)
     
 class FeatureHDF5Dataset(Dataset):
-    def __init__(self, root, subset, extract_layer, required_key, normalize=True):
+    def __init__(self, root, subset, extract_layer, required_key, normalize=False):
         
         self.hdf5_path = os.path.join(root, subset + '.h5')
         self.normalize = normalize

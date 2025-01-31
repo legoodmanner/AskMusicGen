@@ -8,11 +8,12 @@ class MLP(nn.Module):
         layers = []
         current_size = input_size
         # layers.append(nn.BatchNorm1d(current_size, affine=True))
+        layers.append(nn.LazyBatchNorm1d(current_size))
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes]
         for hidden_size in hidden_sizes:
             layers.append(nn.Linear(current_size, hidden_size))
-            layers.append(nn.ReLU() if activation == F.relu else activation)
+            layers.append(nn.Tanh() if activation == F.relu else activation)
             if dropout > 0.0:
                 layers.append(nn.Dropout(dropout))
             current_size = hidden_size

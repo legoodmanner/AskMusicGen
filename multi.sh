@@ -11,7 +11,7 @@ cleanup() {
 trap cleanup SIGINT
 
 # Total number of layers
-TOTAL_LAYERS=24  # Change this to the total number of layers you have
+TOTAL_LAYERS=48  # Change this to the total number of layers you have
 THREAD_COUNT=2   # Number of threads
 STEP=1          # Step size for layers
 
@@ -50,7 +50,7 @@ for thread in $(seq 0 $((THREAD_COUNT - 1))); do
             for i in $(seq $START $END); do
                 echo "Running layer $i on thread $thread"
                 ##### THE COMMAND YOU WANT TO RUN #####
-                python3 experiment.py configs/MusicGenS_MTG_genre_feature.yaml --layer $i
+                python3 experiment.py configs/MusicGenL_GS_key_feature.yaml --layer $i
             done
         done
     ) &

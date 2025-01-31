@@ -104,6 +104,8 @@ class Experiment:
                     project=exp_config.logger.project, 
                     save_dir= exp_config.logger.output_dir, 
                     name=exp_config.logger.name or f'{exp_config.gen_model} {exp_config.task} {self.config.model.gen_model.extract_layer}',
+                    tags= [exp_config.task, exp_config.gen_model, f'layer_{self.config.model.gen_model.extract_layer}']
+                    layer= self.config.model.gen_model.extract_layer
                 )
                 return wandb_logger
             else:
@@ -185,7 +187,7 @@ class Experiment:
             gradient_clip_val=0.5,
             gradient_clip_algorithm='value',
             accumulate_grad_batches= self.config.training.accumulate_grad_batches,
-            enable_checkpointing=False, # Disable saving checkpoint
+            enable_checkpointing=self.config.training.enable_checkpointing or False, # Disable saving checkpoint
         )
 
         ckpt_path = self.config.training.get('start_from_ckpt')
@@ -230,12 +232,18 @@ if __name__ == '__main__':
     parser.add_argument(
         '--dry_run', action='store_true',
     )
+    parser.add_argument(
+        '--save_parm', action='store_true',
+    )
     args = parser.parse_args()
     base_config = OmegaConf.load(args.c)
     # update layer information 
     if args.layer is not None:
         OmegaConf.update(base_config, 'model.gen_model.extract_layer', args.layer)
         print(f'Layer updated to {args.layer}')
+    # update save parm information 
+    OmegaConf.update(base_config, 'training.enable_checkpointing', args.save_parm)
+
 
     exp = Experiment(base_config)
     if args.dry_run:

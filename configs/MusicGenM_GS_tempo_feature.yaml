@@ -3,13 +3,6 @@ experiment:
   seed: 2024
   task: GS_tempo_feature
   gen_model: MusicGenMedium
-  logger:
-    # output_dir: '../scratch/outputs/'
-    output_dir: 'cache/outputs/'
-
-    type: wandb
-    project: Giantsteps_tempo
-    name: null
 
 training:
   learning_rate: 0.001

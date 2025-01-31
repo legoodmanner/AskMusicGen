@@ -1,4 +1,12 @@
 # task config
+# Project base config
+experiment:
+  logger:
+    output_dir: 'outputs/'
+    type: wandb
+    project: MTG_genre
+    name: null
+
 data:
   name: genre_classification_MTG_fearure
   # data_dir: '/home/lego/Database/Data'
