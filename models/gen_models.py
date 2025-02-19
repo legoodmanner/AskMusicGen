@@ -19,6 +19,9 @@ def get_gen_model(config):
     return model_dict[modelConfig.name](config=config, **modelConfig)
     
 
+    
+
+
 class MusicGenModule(torch.nn.Module):
     def __init__(self, config=None, extract_layer=-1, version='small', **kwargs) -> None:
         super().__init__()
@@ -76,16 +79,95 @@ class MusicGenModule(torch.nn.Module):
                 continue
         # extract representations from decoder LM
         decoder_outputs = self.model(**inputs, output_hidden_states=True)
-        
-        if self.layer is not None:
-            if self.aggregation:
-                return decoder_outputs.decoder_hidden_states[self.layer].mean(-2)  # torch.Size([bs, seq_len, 1024]) -> torch.Size([bs, 1024])
-            return decoder_outputs.decoder_hidden_states[self.layer]
-        else:
-            if self.aggregation:
-                return torch.stack([decoder_outputs.decoder_hidden_states[i].mean(-2) for i in range(len(decoder_outputs.decoder_hidden_states))]) # torch.Size([layer_number, bs, 1024])
-            return decoder_outputs.decoder_hidden_states # tuple( torch.Size([bs, seq_len, 1024]) * layer_number )_states # tuple( torch.Size([bs, seq_len, 1024]) * layer_number )
+        hidden_states = decoder_outputs.decoder_hidden_states
 
+
+        if self.layer is not None:
+            return self.aggregate(hidden_states[self.layer], agg_type=self.config.model.gen_model.get('agg_type', 'mean'))
+        else:
+            # When self.layer is None, we either stack the aggregated results or return the original tuple.
+            return torch.stack(
+                [self.aggregate(h, agg_type=self.config.model.gen_model.get('agg_type', 'mean')) for h in hidden_states]
+            ) if self.aggregation else hidden_states
+        
+    def aggregate(self, activations, agg_type='mean', **kwargs):
+        """
+        hidden_state: torch.Size([bs, seq_len, 1280])
+        """
+        if agg_type == 'mean':
+            return activations.mean(dim=-2)
+
+        elif agg_type == 'k-means':
+            bs, seq_len, feature_dim = activations.shape
+            aggregated = []  # This will collect the aggregated representation per sample.
+
+            # Process each sample in the batch independently.
+            for i in range(bs):
+                # Get the activations for the i-th sample: shape [seq_len, feature_dim]
+                x = activations[i]
+
+                # Randomly initialize centroids from the time sequence tokens.
+                init_indices = torch.randperm(seq_len)[:kwargs.get('n_clusters', 4)]
+                centroids = x[init_indices]  # shape: [n_clusters, feature_dim]
+
+                # Run the k-means algorithm for a fixed number of iterations.
+                for _ in range(kwargs.get('n_iter', 50)):
+                    # Compute squared Euclidean distances between tokens and centroids.
+                    # x.unsqueeze(1): [seq_len, 1, feature_dim]
+                    # centroids.unsqueeze(0): [1, n_clusters, feature_dim]
+                    distances = ((x.unsqueeze(1) - centroids.unsqueeze(0)) ** 2).sum(dim=-1)  # [seq_len, n_clusters]
+                    
+                    # Assign each token (time step) to the closest centroid.
+                    labels = distances.argmin(dim=1)  # shape: [seq_len]
+
+                    # Update centroids based on the mean of assigned tokens.
+                    new_centroids = []
+                    for cluster in range(kwargs.get('n_clusters', 4)):
+                        cluster_mask = (labels == cluster)
+                        if cluster_mask.any():
+                            new_centroid = x[cluster_mask].mean(dim=0)
+                        else:
+                            # If no tokens are assigned to this cluster, keep the old centroid.
+                            new_centroid = centroids[cluster]
+                        new_centroids.append(new_centroid)
+                    centroids = torch.stack(new_centroids)
+
+                
+                # 
+                aggregated_representation = centroids.mean(dim=0)  # shape: [feature_dim]
+                aggregated.append(aggregated_representation)
+
+
+            return torch.stack(aggregated)  # shape: [bs, feature_dim]
+        
+        else:
+            raise ValueError(f"Unknown aggregation type: {agg_type}")
+    
+    # return un-aggregated representations
+    def predict_step(self, wav, batch_idx):
+        with torch.no_grad():
+            wav = wav.detach().cpu()
+            wav = [w.squeeze().numpy() for w in wav]
+            inputs = self.processor(
+                audio=wav,
+                text=[""]*len(wav),
+                sampling_rate=self.config.data.sample_rate,
+                padding=True,
+                return_tensors="pt",
+            )
+            for k in inputs:
+                try:
+                    inputs[k] = inputs[k].cuda()
+                except:
+                    continue
+            # extract representations from decoder LM
+            decoder_outputs = self.model(**inputs, output_hidden_states=True)
+            hidden_states = decoder_outputs.decoder_hidden_states
+        return hidden_states
+
+            
+
+    
 
 from vampnet.interface import Interface as VampNetInterface
 from vampnet import mask as pmask 

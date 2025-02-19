@@ -2,8 +2,7 @@
 experiment:
   seed: 2024
   task: GS_key_feature
-  gen_model: MusicGenLarge
-  
+  gen_model: MusicGenSmall
 
 training:
   learning_rate: 0.001
@@ -15,6 +14,8 @@ training:
 model:
   gen_model:
       extract_layer: 0
+      agg_type: 'k-means'
+      output_dim: 1024
   
 
   

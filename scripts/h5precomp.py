@@ -9,20 +9,19 @@ import lightning as L
 
 
 class FeatureExtractor(L.LightningModule):
-    def __init__(self, config, output_dir, subset='train', mean_agg=True) -> None:
+    def __init__(self, config, output_dir, subset='train', agg_type='mean') -> None:
         super().__init__()
         self.config = config
         self.repr_extractor = get_gen_model(self.config)
         self.repr_extractor.layer = None
         self.output_dir = output_dir
         self.subset = subset # train, valid, test
-        self.mean_agg = mean_agg
         self.h5_file = None
         self.dataset_size = 0  # Keeps track of the number of items in the dataset
         self.h5_filenames = {
-            'train': os.path.join(self.output_dir, 'train.h5'),
-            'valid': os.path.join(self.output_dir, 'valid.h5'),
-            'test': os.path.join(self.output_dir, 'test.h5')
+            'train': os.path.join(self.output_dir, f'train_{agg_type}.h5'),
+            'valid': os.path.join(self.output_dir, f'valid_{agg_type}.h5'),
+            'test': os.path.join(self.output_dir, f'test_{agg_type}.h5')
         }
     
     def on_predict_start(self):
@@ -42,11 +41,8 @@ class FeatureExtractor(L.LightningModule):
         repr = self.repr_extractor(wav)
         # print("Finished extracting features")
         if isinstance(repr, tuple):
-            repr = torch.stack(repr) #[layer, bs, seq_len, 1024]
-        # if self.mean_agg:
-        #     repr = repr.permute(1,0,2,3)  #[bs, layer, seq_len, 1024]
-        #     repr = repr.mean(-2) #[bs, layer, 1024]
-        repr = repr.permute(1,0,2)
+            repr = torch.stack(repr) #[layer, bs, seq_len, 1024] or [layer, bs, 1024]
+        repr = repr.transpose(0, 1)  # [bs, layer, (seq_len), 1024]
         return repr
     
     def predict_step(self, batch, batch_idx):
@@ -56,15 +52,10 @@ class FeatureExtractor(L.LightningModule):
             # print("forwarding...")
             repr = self(wav)  #[bs, layer, (seq_len), 1024]
             # print("finished")
-            # if not self.mean_agg:
-            #     bs, layer, seq_len, dim = repr.shape
-            #     if 'beat_f' in meta:
-            #         mini_crop = min(seq_len, meta['beat_f'].shape[-1])
-            #         meta['beat_f'] = meta['beat_f'][..., :mini_crop]
-            #     else: mini_crop=seq_len
-            #     repr = repr[...,:mini_crop,:]
-            # else:
-            bs, layer, dim = repr.shape
+            if repr.dim() == 3:
+                bs, layer, dim = repr.shape
+            else:
+                bs, layer, seq_len, dim = repr.shape
             
             for idx, r in enumerate(repr):
                 # Create a group for each sample
@@ -86,20 +77,29 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--subset', type=str, default=None)
+    parser.add_argument('--agg_type', type=str, default='mean')
     args = parser.parse_args()
+
     """"For local 4080"""
-    output_path = "/home/lego/Database/GS/MusicGenLarge"
+    output_path = "/home/lego/Database/GS/key/MusicGenSmall_seq"
 
     """"For PACE"""
     # output_path = "../scratch/GS/key/MusicGenLarge"
-    modelConfig = OmegaConf.load('configs/gens/MusicGenLarge.yaml')
-    dataConfig = OmegaConf.load('configs/tasks/GS_tempo.yaml')
-    dataConfig.data.required_key = ['tempo']
+
+    modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
+    dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
+    dataConfig.data.required_key = ['key']
+    
+    # Whether aggregation or not
+    modelConfig.model.gen_model.aggregation = False
+    # modelConfig.model.gen_model.agg_type = args.agg_type
+    modelConfig.model.gen_model.extract_layer = 3
+
     config = OmegaConf.merge(modelConfig, dataConfig)
 
     os.makedirs(output_path, exist_ok=True)
     print(f"Initializing feature extraction model")
-    model = FeatureExtractor(config, output_path, subset='train', mean_agg=False)
+    model = FeatureExtractor(config, output_path, subset='train', agg_type=args.agg_type)
     print("DataModule loading...")
     dl = get_dataModule(config)
 

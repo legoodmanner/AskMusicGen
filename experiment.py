@@ -104,8 +104,8 @@ class Experiment:
                     project=exp_config.logger.project, 
                     save_dir= exp_config.logger.output_dir, 
                     name=exp_config.logger.name or f'{exp_config.gen_model} {exp_config.task} {self.config.model.gen_model.extract_layer}',
-                    tags= [exp_config.task, exp_config.gen_model, f'layer_{self.config.model.gen_model.extract_layer}']
-                    layer= self.config.model.gen_model.extract_layer
+                    tags= [exp_config.task, exp_config.gen_model, f'layer_{self.config.model.gen_model.extract_layer}'],
+                    config= {'layer': self.config.model.gen_model.extract_layer}
                 )
                 return wandb_logger
             else:

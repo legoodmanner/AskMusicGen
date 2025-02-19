@@ -13,7 +13,7 @@ class MLP(nn.Module):
             hidden_sizes = [hidden_sizes]
         for hidden_size in hidden_sizes:
             layers.append(nn.Linear(current_size, hidden_size))
-            layers.append(nn.Tanh() if activation == F.relu else activation)
+            layers.append(nn.ReLU() if activation == F.relu else activation)
             if dropout > 0.0:
                 layers.append(nn.Dropout(dropout))
             current_size = hidden_size
@@ -34,3 +34,5 @@ def dbnProcessor(activations, fps):
         act = act.detach().cpu().numpy()
         result += [proc(act)] # pred
     return result #list of beat position in seconds e.g. [1.24, 1.45, 1.78, ...]
+
+
