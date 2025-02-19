@@ -1,19 +1,21 @@
 # Project base config
 experiment:
   seed: 2024
-  task: GS_tempo_feature
+  task: GS_key_feature
   gen_model: MusicGenMedium
+
 
 training:
   learning_rate: 0.001
   weight_decay: 0.01
-  epochs: 100 # max epoch
+  epochs: 500 # max epoch
   log_step: 5
   val_check_interval: 1
 
 model:
   gen_model:
       extract_layer: 0
+      output_dim: 4096
   
 
   

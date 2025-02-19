@@ -3,13 +3,6 @@ experiment:
   seed: 2024
   task: GS_key_feature
   gen_model: VampC2F
-  logger:
-    # output_dir: '../scratch/outputs/'
-    output_dir: 'cache/outputs/'
-
-    type: wandb
-    project: GiantSteps_key
-    name: null
 
 training:
   learning_rate: 0.001

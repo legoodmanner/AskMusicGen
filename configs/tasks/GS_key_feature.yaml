@@ -1,4 +1,12 @@
 # task config
+experiment:
+  logger:
+    # output_dir: '../scratch/outputs/'
+    output_dir: 'cache/outputs/'
+    type: wandb
+    project: Giantsteps_key
+    name: null
+    
 data:
   name: key_GS_feature
   data_dir: '/home/lego/Database/GS/key/'

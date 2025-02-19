@@ -1,4 +1,12 @@
 # task config
+experiment:
+  logger:
+    # output_dir: '../scratch/outputs/'
+    output_dir: 'cache/outputs/'
+    type: wandb
+    project: Giantsteps_tempo
+    name: null
+
 data:
   name: tempo_GS_feature
   # data_dir: '../scratch/GS/tempo/'

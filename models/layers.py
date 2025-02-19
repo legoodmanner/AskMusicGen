@@ -8,6 +8,7 @@ class MLP(nn.Module):
         layers = []
         current_size = input_size
         # layers.append(nn.BatchNorm1d(current_size, affine=True))
+        layers.append(nn.LazyBatchNorm1d(current_size))
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes]
         for hidden_size in hidden_sizes:
@@ -33,3 +34,5 @@ def dbnProcessor(activations, fps):
         act = act.detach().cpu().numpy()
         result += [proc(act)] # pred
     return result #list of beat position in seconds e.g. [1.24, 1.45, 1.78, ...]
+
+

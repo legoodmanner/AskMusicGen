@@ -50,7 +50,7 @@ for thread in $(seq 0 $((THREAD_COUNT - 1))); do
             for i in $(seq $START $END); do
                 echo "Running layer $i on thread $thread"
                 ##### THE COMMAND YOU WANT TO RUN #####
-                python3 experiment.py configs/MusicGenS_GS_key_feature.yaml --layer $i
+                python3 experiment.py configs/MusicGenS_GS_key_k-means=4.yaml --layer $i
             done
         done
     ) &

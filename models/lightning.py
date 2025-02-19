@@ -50,7 +50,6 @@ class DiscrimProbeModule(L.LightningModule):
             dropout=config.model.peft.repr_head.dropout,
         )
         self.save_hyperparameters(config, ignore='gen_model')
-        self.log('layer', self.config.model.gen_model.extract_layer)
         
     
     def forward(self, inps):
