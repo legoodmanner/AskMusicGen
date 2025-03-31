@@ -2,7 +2,7 @@
 experiment:
   seed: 2024
   task: GS_key_feature
-  gen_model: MusicGenMedium
+  gen_model: MusicGenSmall
 
 
 training:
@@ -15,7 +15,8 @@ training:
 model:
   gen_model:
       extract_layer: 0
-      output_dim: 4096
+      agg_type: 'downsample'
+      output_dim: 1024
   
 
   

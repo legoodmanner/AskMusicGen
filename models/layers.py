@@ -24,6 +24,28 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.model(x)
     
+class LSTM(nn.Module):
+    def __init__(self, input_size, hidden_sizes, output_size, bidirectional=True, num_layers=2, dropout=0.0):
+        super(LSTM, self).__init__()
+        assert isinstance(hidden_sizes, int)
+        self.bn = nn.LazyBatchNorm1d(input_size)
+        self.lstm = nn.LSTM(input_size, hidden_sizes, num_layers, batch_first=True, bidirectional=bidirectional, dropout=dropout)
+        self.fc = nn.Linear(hidden_sizes * (2 if bidirectional else 1), output_size)
+
+        self.tmp = MLP(input_size, hidden_sizes, output_size, activation=F.relu, dropout=dropout)
+    def forward(self, x):
+        '''
+        x: [batch_size, seq_len, input_size]
+        '''
+        # x = self.bn(x.transpose(1, 2)).transpose(1, 2)
+        # lstm_out, _ = self.lstm(x)
+        # out = self.fc(lstm_out[:, -1, :])
+        lstm_out = x.mean(dim=1)
+        out = self.tmp(lstm_out)
+
+        return out
+
+    
 from madmom.features.beats import DBNBeatTrackingProcessor
 
 def dbnProcessor(activations, fps):

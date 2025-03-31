@@ -3,7 +3,7 @@ data:
   name: key_GS
   data_dir: '/home/lego/Database/GS/key/raw'
   # data_dir: '../scratch/GS/key/raw'
-  batch_size: 1
+  batch_size: 16
   num_workers: 0
   max_length: 1323000  # 25s approx (30 * 44100)
   orig_sample_rate: 44100

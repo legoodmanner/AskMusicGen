@@ -14,6 +14,7 @@ def get_gen_model(config):
         'VampNetC2F': VampNetModule,
         'MFCC': MFCCModule,
         'Mel': MelModule,
+        'StableAudioOpen': DiffModule,
     }
 
     return model_dict[modelConfig.name](config=config, **modelConfig)
@@ -96,6 +97,13 @@ class MusicGenModule(torch.nn.Module):
         """
         if agg_type == 'mean':
             return activations.mean(dim=-2)
+        
+        elif agg_type == 'downsample':
+            ratio = kwargs.get('ratio', 8)
+            # interpolate
+            activations = activations.transpose(1, 2) # [bs, 1280, seq_len]
+            activations =  torch.nn.functional.interpolate(activations, scale_factor=1/ratio, mode='area')
+            return activations.transpose(1, 2) # [bs, seq_len, 1280]
 
         elif agg_type == 'k-means':
             bs, seq_len, feature_dim = activations.shape
@@ -251,7 +259,48 @@ class VampNetModule(torch.nn.Module):
             mean_vectors = activations.mean(dim=-2)  # Shape: ((layer), bs, vector_dim)
         return mean_vectors
             
-           
+from stable_audio_tools import get_pretrained_model
+from stable_audio_tools.inference.generation import generate_diffusion_uncond
+
+
+class DiffModule(torch.nn.Module):
+    def __init__(self, config=None, extract_time_step=None, **kwargs) -> None:
+        super().__init__()
+        self.config = config
+        self.time_step = extract_time_step
+        self.requires_grad_(False)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, self.model_config = get_pretrained_model("stabilityai/stable-audio-open-1.0")
+        self.model.to(self.device)
+        self.sample_rate = self.model_config["sample_rate"]
+        self.hidden_states = []
+    
+    def callback(self, model_output):
+        # ({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        # save for every 50 steps
+        if model_output['i'] % self.config.model.gen_model.get('save_every', 50) == 0:
+            self.hidden_states.append(
+                (model_output['denoised'] - model_output['x']).transpose(-1, -2)
+            )
+
+    @torch.no_grad()
+    def forward(self, wav):
+        if len(wav.shape) == 3:
+            wav = wav.squeeze(1)
+        generate_diffusion_uncond(
+            self.model,
+            steps=self.config.model.gen_model.get('steps', 250),
+            batch_size=self.config.data.batch_size,
+            sample_size=self.config.data.max_length,
+            sigma_min=0.3,
+            sigma_max=500,
+            init_audio=(self.sample_rate, wav),
+            device=self.device,
+            callback=self.callback,
+        )
+        output = self.hidden_states
+        self.hidden_states = []
+        return output
 
 
 class MFCCModule(torch.nn.Module):
@@ -298,4 +347,17 @@ class MelModule(torch.nn.Module):
             return (mel,) # return as tuple for compatibility
 
     
- 
+
+if __name__ == "__main__":
+    from omegaconf import OmegaConf
+    test_config = OmegaConf.create(
+        dict(data = {
+            "sample_rate": 16000,
+            "batch_size": 1,
+            "max_length": 32000,
+        })
+    )
+    model = DiffModule(config=test_config)
+    wav = torch.randn(1, 16000)
+    output = model(wav)
+    breakpoint()

@@ -40,7 +40,7 @@ class FeatureExtractor(L.LightningModule):
         # breakpoint()
         repr = self.repr_extractor(wav)
         # print("Finished extracting features")
-        if isinstance(repr, tuple):
+        if isinstance(repr, tuple) or isinstance(repr, list):
             repr = torch.stack(repr) #[layer, bs, seq_len, 1024] or [layer, bs, 1024]
         repr = repr.transpose(0, 1)  # [bs, layer, (seq_len), 1024]
         return repr
@@ -81,25 +81,25 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     """"For local 4080"""
-    output_path = "/home/lego/Database/GS/key/MusicGenSmall_seq"
+    output_path = "/home/lego/Database/GS/key/StableAudioOpen"
 
     """"For PACE"""
     # output_path = "../scratch/GS/key/MusicGenLarge"
 
-    modelConfig = OmegaConf.load('configs/gens/MusicGenSmall.yaml')
+    modelConfig = OmegaConf.load('configs/gens/StableAudioOpen.yaml')
     dataConfig = OmegaConf.load('configs/tasks/GS_key.yaml')
     dataConfig.data.required_key = ['key']
     
     # Whether aggregation or not
-    modelConfig.model.gen_model.aggregation = False
-    # modelConfig.model.gen_model.agg_type = args.agg_type
+    modelConfig.model.gen_model.aggregation = True
+    modelConfig.model.gen_model.agg_type = args.agg_type
     modelConfig.model.gen_model.extract_layer = 3
 
     config = OmegaConf.merge(modelConfig, dataConfig)
 
     os.makedirs(output_path, exist_ok=True)
     print(f"Initializing feature extraction model")
-    model = FeatureExtractor(config, output_path, subset='train', agg_type=args.agg_type)
+    model = FeatureExtractor(config, output_path, agg_type=args.agg_type)
     print("DataModule loading...")
     dl = get_dataModule(config)
 
@@ -107,7 +107,8 @@ if __name__ == '__main__':
 
     if args.subset == 'train' or args.subset is None:
         print('extracting train...')
-        trainer.predict(model, dataloaders=dl.train_dataloader())
+        model.subset = 'train'
+        trainer.predict(model, dataloaders=dl.train_dataloader(), )
 
     # model.subset = 'valid'
     # print('extracting valid...')

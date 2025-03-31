@@ -1,0 +1,20 @@
+# gen config
+data:
+  sample_rate: 44100 # this is the wanted sample rate required for genmodel
+  preprocessors: [pad_or_truncate, monolize, resample] # in that order to be applied
+
+model:
+  gen_model: 
+    name: StableAudioOpen
+    fps: 7.5
+    output_dim: 64
+    steps: 25
+    save_every: 5
+    
+    
+  
+    
+    
+
+  
+  
