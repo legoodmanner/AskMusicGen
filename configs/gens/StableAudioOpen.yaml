@@ -8,7 +8,7 @@ model:
     name: StableAudioOpen
     fps: 7.5
     output_dim: 64
-    steps: 25
+    steps: 500
     save_every: 5
     
     

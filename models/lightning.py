@@ -43,8 +43,7 @@ class DiscrimProbeModule(L.LightningModule):
         if not config.model.peft.get('use_feature'): # inps is wave
             self.repr_extractor = gen_model
         # Set trainable MLP
-        
-        self.probe_mlp = LSTM(
+        self.probe_mlp = MLP(
             input_size= config.model.gen_model.output_dim,
             hidden_sizes= config.model.peft.repr_head.hidden_sizes,
             output_size= config.model.peft.repr_head.n_classes,

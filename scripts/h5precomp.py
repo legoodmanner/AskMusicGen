@@ -94,7 +94,7 @@ if __name__ == '__main__':
     modelConfig.model.gen_model.aggregation = True
     modelConfig.model.gen_model.agg_type = args.agg_type
     modelConfig.model.gen_model.extract_layer = 3
-
+    modelConfig.model.gen_model.extract_time_step = 100
     config = OmegaConf.merge(modelConfig, dataConfig)
 
     os.makedirs(output_path, exist_ok=True)

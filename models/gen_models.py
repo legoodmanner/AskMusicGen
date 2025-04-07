@@ -262,12 +262,14 @@ class VampNetModule(torch.nn.Module):
 from stable_audio_tools import get_pretrained_model
 from stable_audio_tools.inference.generation import generate_diffusion_uncond
 
+import k_diffusion as K
+from stable_audio_tools.inference.generation import prepare_audio
 
 class DiffModule(torch.nn.Module):
     def __init__(self, config=None, extract_time_step=None, **kwargs) -> None:
         super().__init__()
         self.config = config
-        self.time_step = extract_time_step
+        self.time_step = extract_time_step # can be scalar or list
         self.requires_grad_(False)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model, self.model_config = get_pretrained_model("stabilityai/stable-audio-open-1.0")
@@ -287,20 +289,120 @@ class DiffModule(torch.nn.Module):
     def forward(self, wav):
         if len(wav.shape) == 3:
             wav = wav.squeeze(1)
-        generate_diffusion_uncond(
-            self.model,
-            steps=self.config.model.gen_model.get('steps', 250),
-            batch_size=self.config.data.batch_size,
-            sample_size=self.config.data.max_length,
-            sigma_min=0.3,
-            sigma_max=500,
-            init_audio=(self.sample_rate, wav),
-            device=self.device,
-            callback=self.callback,
+        if isinstance(self.time_step, list):
+            representation = []
+            for t in self.time_step:
+                repr = self.extract_representation(
+                    (self.sample_rate, wav), 
+                    timestep=t, 
+                    device=self.device, 
+                    **self.config.model.gen_model
+                )
+                representation.append()
+        else:
+            representation = self.extract_representation(
+                (self.sample_rate, wav), 
+                timestep=self.time_step,
+                device=self.device, 
+                **self.config.model.gen_model
+            )
+
+        return representation.unsqueeze(0)
+    
+    def extract_representation(
+            self,
+            input_audio,
+            timestep: int = 100,  # specify which timestep to use
+            device: str = "cuda",
+            **sampler_kwargs
+            ) -> torch.Tensor:
+        
+        # Get input audio and sample rate
+        in_sr, audio = input_audio
+        
+        # Prepare the audio and convert to latent if using latent diffusion
+        io_channels = self.model.pretransform.io_channels if self.model.pretransform is not None else self.model.io_channels
+        
+        # Prepare audio to correct format
+        processed_audio = prepare_audio(
+            audio, 
+            in_sr=in_sr, 
+            target_sr=self.model.sample_rate, 
+            target_channels=io_channels, 
+            device=device,
+            target_length=self.config.data.max_length
         )
-        output = self.hidden_states
-        self.hidden_states = []
-        return output
+
+        # Convert to latent if using latent diffusion
+        if self.model.pretransform is not None:
+            z = self.model.pretransform.encode(processed_audio)
+        else:
+            z = processed_audio
+
+        # Calculate noise level for the specified timestep
+        # You'll need to adjust this based on your noise schedule
+        t = torch.tensor([timestep], device=device)
+        noise_level = self.get_noise_level(t, **sampler_kwargs)  # You'll need to implement this based on your scheduler
+        
+        # Add noise to the latent
+        noise = torch.randn_like(z)
+        noisy_latent = z + noise_level * noise
+
+        # Run single diffusion step
+        if self.model.diffusion_objective == "v":
+            # Adapt your k-diffusion sampler for single step
+            representation = self.single_step_k(
+                x=noisy_latent,
+                timestep=timestep,
+                device=device,
+                **sampler_kwargs
+            )
+        elif self.model.diffusion_objective == "rectified_flow":
+            # Adapt your RF sampler for single step
+            representation = self.single_step_rf(noisy_latent, t, **sampler_kwargs)
+        representation = representation.transpose(-1, -2)
+
+        #TODO aggregation
+        representation = representation.mean(dim=-2)
+        return representation
+
+    def get_noise_level(self, timestep: torch.Tensor, sigma_min=0.01, sigma_max=100, steps=100, device="cuda", **extra_args):
+        """
+        Convert timestep to noise level (sigma)
+        Args:
+            timestep: Current timestep (between 0 and steps-1)
+            sigma_min: Minimum sigma value
+            sigma_max: Maximum sigma value
+            steps: Total number of steps
+            device: Device to put tensor on
+        Returns:
+            sigma: Noise level for the timestep
+        """
+        # Using polyexponential sigma scheduling from k-diffusion
+        sigmas = K.sampling.get_sigmas_polyexponential(
+            steps, 
+            sigma_min, 
+            sigma_max, 
+            rho=1.0, 
+            device=device
+        )
+        return sigmas[timestep]
+
+    def single_step_k(self, x, timestep, sigma_min=0.01, sigma_max=100, steps=250, device="cuda", **extra_args):
+        """
+        Run a single step of k-diffusion and return predicted noise
+        """
+        denoiser = K.external.VDenoiser(self.model.model)
+        sigma = self.get_noise_level(timestep, sigma_min, sigma_max, steps, device)
+        s_in = torch.ones([x.shape[0]], device=x.device)
+        
+        # Get denoised output
+        denoised = denoiser(x, sigma * s_in, )
+        
+        # Calculate predicted noise (following DDPM formulation)
+        pred_noise = (x - denoised) / sigma
+
+        return pred_noise # or return both: return pred_noise, denoised
 
 
 class MFCCModule(torch.nn.Module):
@@ -355,9 +457,17 @@ if __name__ == "__main__":
             "sample_rate": 16000,
             "batch_size": 1,
             "max_length": 32000,
-        })
+        },
+        model = {
+            "gen_model": {
+                "name": "StableAudioOpen",
+                "extract_layer": 1,
+            }
+        }
+        )
     )
-    model = DiffModule(config=test_config)
+    model = DiffModule(config=test_config, extract_time_step=50)
+    print(model.model.diffusion_objective)
     wav = torch.randn(1, 16000)
     output = model(wav)
     breakpoint()

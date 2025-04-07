@@ -294,7 +294,7 @@ class FeatureHDF5Dataset(Dataset):
         with h5py.File(self.hdf5_path, 'r') as f:
             # filename as key (?)
             self.indexs = list(f.keys())
-        
+        print('Length of the dataset:', len(self.indexs))
         # compute the mean and std of the repr data
         if normalize:
             self.mean, self.std = self.compute_mean_std()
